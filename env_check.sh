@@ -1,5 +1,11 @@
 #!/bin/bash
 
+IP=$1
+OUTPUT_DIR=$2
+
+OUTPUT_FILE=${OUTPUT_DIR}/${IP}.env_check.result
+
+
 check_kernel_version() {
     local kernel_version=""
     if [ "$(uname -a | grep "4.19.148+")" == "" ]; then
@@ -64,8 +70,24 @@ check_ucx(){
 }
 
 
-check_kernel_version
-check_roce_mpi_health
-check_cpu_number
-check_memory
-check_ucx
+ssh -o StrictHostKeyChecking=no $IP > ${OUTPUT_FILE} 2>/dev/null << remotessh
+    $(typeset -f check_kernel_version)
+    $(typeset -f check_roce_mpi_health)
+    $(typeset -f check_cpu_number)
+    $(typeset -f check_memory)
+    $(typeset -f check_ucx)
+
+    check_kernel_version
+    check_roce_mpi_health
+    check_cpu_number
+    check_memory
+    check_ucx
+
+    exit
+remotessh
+
+if [ $? -eq 0 ]; then
+    echo "SUCC" >> ${OUTPUT_FILE}
+else
+    echo "FAIL" >> ${OUTPUT_FILE}
+fi
