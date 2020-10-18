@@ -10,14 +10,6 @@ def get_args():
     return parser.parse_args()
 
 
-def nopassword_check(ip, server_ip):
-    cmd = 'bash nopassword_check.sh {} {}'.format(ip, server_ip)
-    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    stdout, stderr = process.communicate()
-    exit_code = process.wait()
-    print(stdout, stderr, exit_code)
-
-
 def exec_cmd(cmd):
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     stdout, stderr = process.communicate()
