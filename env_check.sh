@@ -90,4 +90,5 @@ if [ $? -eq 0 ]; then
     echo "SUCC" >> ${OUTPUT_FILE}
 else
     echo "FAIL" >> ${OUTPUT_FILE}
+    exit 1
 fi
