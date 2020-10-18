@@ -1,0 +1,15 @@
+# UCP
+ucp_iov_contig_tag_lat      -t tag_lat -D iov,contig
+ucp_iov_iov_tag_lat         -t tag_lat -D iov,iov
+ucp_contig_contig_tag_lat   -t tag_lat -D contig,contig
+ucp_iov_contig_tag_bw       -t tag_bw  -D iov,contig
+ucp_iov_iov_tag_bw          -t tag_bw  -D iov,iov
+ucp_contig_contig_tag_bw    -t tag_bw  -D contig,contig
+ucp_sync_tag_lat            -t tag_sync_lat
+ucp_unexp_tag_lat           -t tag_lat
+ucp_wild_tag_lat            -t tag_lat
+ucp_stream_bw        -t stream_bw  -r recv
+ucp_stream_lat       -t stream_lat -r recv
+ucp_put_lat                 -t ucp_put_lat 
+ucp_put_bw                 -t ucp_put_bw 
+ucp_get                 -t ucp_get
