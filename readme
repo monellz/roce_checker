@@ -11,8 +11,8 @@ controll.py控制并发
 1. 调用nopassword_check.sh IP测试节点是否免密登陆
     1) 只有master stdout输出
     2) 脚本返回1 表示失败 0->成功
-2. 调用env_check.sh IP TARGET_DIR OUTPUT_DIR测试节点环境
-    1) slave stdout的输出会被重定向到 ${TARGET_DIR}/${IP}.env_check.result，然后scp回master节点在OUTPUT_DIR下保存
+2. 调用env_check.sh IP OUTPUT_DIR测试节点环境
+    1) slave stdout的输出会被重定向到master节点在OUTPUT_DIR下保存为${IP}.env_check.result
     2) 脚本返回1 表示失败 0->成功
 3. 调用setup.sh IP TARGET_DIR OUTPUT_DIR传输必要的脚本到节点上
     1) 会在对应节点上${TARGET_DIR}下复制文件，生成文件等
