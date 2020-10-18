@@ -1,0 +1,71 @@
+#!/bin/bash
+
+check_kernel_version() {
+    local kernel_version=""
+    if [ "$(uname -a | grep "4.19.148+")" == "" ]; then
+        echo "OS (`uname -a`) do not support"
+        exit 1
+    fi
+}
+
+
+check_roce_mpi_health() {
+    if [ "$(rpm -qa | grep rdma-core-20)" == "" ]; then
+        echo "Do not install rdma-core-20"
+        exit 1
+    fi
+    
+    which mpirun | grep mpi &>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "Do not install ompi-4.0"
+        exit 1
+    fi
+}
+
+check_cpu_number() {
+    num=$(lscpu | awk '/CPU:/{print $2}')
+    if [ ! $num ]; then
+        echo "CPU check failed"
+        exit 1
+    fi
+}
+
+check_memory() {
+    mem=$(grep MemTotal /proc/meminfo)
+    if [ ! "$mem" ]; then
+        echo "Memory check failed"
+        exit 1
+    fi
+}
+
+check_hugepage_size() {
+    pagesize=$(grep Hugepage /proc/meminfo | ask '{print $2}')
+    if [ $pagesize != 2048 ]; then
+        echo "Memory huagepage size check failed"
+        exit 1
+    fi
+}
+
+
+check_nvme_storage() {
+    nvme_num=$(fdisk -l | grep nvme | wc -l)
+    if [ $nvme_num == 0 ]; then
+        echo "Nvme check failed(number is 0)"
+        exit 1
+    fi
+}
+
+check_ucx(){
+    ucxm=$(ucx_info -v )
+    if [[ ! $ucxm =~ "UCT version=1.9.0" ]]; then
+        echo "UCX install check failed"
+        exit 1 
+    fi
+}
+
+
+check_kernel_version
+check_roce_mpi_health
+check_cpu_number
+check_memory
+check_ucx
