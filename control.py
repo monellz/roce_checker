@@ -20,8 +20,19 @@ def exec_cmd(cmd):
 def run(args):
     NUM_PROC_PARALLEL = 5
 
-    nodes_ip    = [1,2,3,4,5]
-    server_ip   = 1
+    nodes_ip    = [
+        "172.16.201.4",
+        "172.16.201.5",
+        "172.16.201.6",
+        "172.16.201.7",
+        "172.16.201.8",
+        "172.16.201.9",
+        "172.16.201.10",
+        "172.16.201.13",
+        # "172.16.201.14",
+        "172.16.201.100",
+    ]
+    server_ip   = "172.16.201.4"
     
     # Start Time
     st = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
@@ -50,8 +61,10 @@ def run(args):
     for ip, res in zip(nodes_ip, results):
         _, _, exit_code = res.get()
         if exit_code == 1:
-            print("{} no password check fail".format(ip))
+            print("{} no password check fail.".format(ip))
             nodes_ip.remove(ip)
+        else:
+            print("{} no password check successfully.".format(ip))
 
     # ====================
     # Env check
@@ -60,7 +73,8 @@ def run(args):
     results = []
 
     for ip in nodes_ip:
-        cmd = 'bash env_check.sh {} {}'.format(ip, os.path.join(result_path, "./env_check"))
+        # cmd = './env_check.sh {} {}'.format(ip, os.path.join(result_path, "./env_check"))
+        cmd = 'bash env_check.sh {} {}'.format(ip, result_path)
         res = pool.apply_async(exec_cmd, (cmd,))
         results.append(res)
 
@@ -73,49 +87,51 @@ def run(args):
         if exit_code == 1:
             print("{} Env check fail".format(ip))
             nodes_ip.remove(ip)
+        else:
+            print("{} Env check successfully.".format(ip))
 
     # ====================
     # Setup
     # ====================
-    pool = Pool(processes=NUM_PROC_PARALLEL)
-    results = []
+    # pool = Pool(processes=NUM_PROC_PARALLEL)
+    # results = []
 
-    for ip in nodes_ip:
-        cmd = 'bash setup.sh {} {} {}'.format(ip, "/.roce_check/setup", os.path.join(result_path, "./setup"))
-        res = pool.apply_async(exec_cmd, (cmd,))
-        results.append(res)
+    # for ip in nodes_ip:
+    #     cmd = 'bash setup.sh {} {} {}'.format(ip, "/.roce_check/setup", os.path.join(result_path, "./setup"))
+    #     res = pool.apply_async(exec_cmd, (cmd,))
+    #     results.append(res)
 
-    pool.close()
-    pool.join()
+    # pool.close()
+    # pool.join()
     
-    # Handle Setup result
-    for ip, res in zip(nodes_ip, results):
-        _, _, exit_code = res.get()
-        if exit_code == 1:
-            print("{} Env Setup fail".format(ip))
-            nodes_ip.remove(ip)
+    # # Handle Setup result
+    # for ip, res in zip(nodes_ip, results):
+    #     _, _, exit_code = res.get()
+    #     if exit_code == 1:
+    #         print("{} Env Setup fail".format(ip))
+    #         nodes_ip.remove(ip)
 
     # ===================
     # Connection check
     # parallel, the number of iters is C(n, 2)
     # ====================
-    pool = Pool(processes=NUM_PROC_PARALLEL)
-    results = []
+    # pool = Pool(processes=NUM_PROC_PARALLEL)
+    # results = []
 
-    comb = list(combinations(nodes_ip, 2))
-    for ip1, ip2 in comb:
-        cmd = 'bash connection_check.sh {} {} {} {}'.format(ip1, ip2, "/.roce_check/connection_check", os.path.join(result_path, "./connection_check"))
-        res = pool.apply_async(exec_cmd, (cmd,))
-        results.append(res)
+    # comb = list(combinations(nodes_ip, 2))
+    # for ip1, ip2 in comb:
+    #     cmd = 'bash connection_check.sh {} {} {} {}'.format(ip1, ip2, "/.roce_check/connection_check", os.path.join(result_path, "./connection_check"))
+    #     res = pool.apply_async(exec_cmd, (cmd,))
+    #     results.append(res)
     
-    pool.close()
-    pool.join()
+    # pool.close()
+    # pool.join()
 
-    # Handle connection check result
-    for c, res in zip(comb, results):
-        _, _, exit_code = res.get()
-        if exit_code == 1:
-            print("{} <-> {} connection fail".format(c[0],c[1]))
+    # # Handle connection check result
+    # for c, res in zip(comb, results):
+    #     _, _, exit_code = res.get()
+    #     if exit_code == 1:
+    #         print("{} <-> {} connection fail".format(c[0],c[1]))
 
 
     # Other check
