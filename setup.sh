@@ -23,6 +23,17 @@ if [ -f $OUTPUT_FILE ]; then
     rm -rf $OUTPUT_FILE
 fi
 
+# create directory
+
+ssh $IP << remotessh
+
+# TODO: remove old directory?
+
+mkdir -p ${TARGET_DIR}
+
+remotessh
+
+
 for f in ${FILES[@]}
 do
     scp -p -o StrictHostKeyChecking=no $f root@$IP:${TARGET_DIR}/ >> ${OUTPUT_FILE} 2>/dev/null
