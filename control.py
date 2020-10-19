@@ -18,8 +18,10 @@ def exec_cmd(cmd):
 
 
 def run(args):
-    nodes_ip = [1,2,3,4,5]
-    server_ip = 1
+    NUM_PROC_PARALLEL = 5
+
+    nodes_ip    = [1,2,3,4,5]
+    server_ip   = 1
     
     # Start Time
     st = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
@@ -33,7 +35,7 @@ def run(args):
     # ====================
     # No password check
     # ====================
-    pool = Pool(processes=3)
+    pool = Pool(processes=NUM_PROC_PARALLEL)
     results = []
 
     for ip in nodes_ip:
@@ -49,11 +51,12 @@ def run(args):
         _, _, exit_code = res.get()
         if exit_code == 1:
             print("{} no password check fail".format(ip))
+            nodes_ip.remove(ip)
 
     # ====================
     # Env check
     # ====================
-    pool = Pool(processes=3)
+    pool = Pool(processes=NUM_PROC_PARALLEL)
     results = []
 
     for ip in nodes_ip:
@@ -69,11 +72,12 @@ def run(args):
         _, _, exit_code = res.get()
         if exit_code == 1:
             print("{} Env check fail".format(ip))
+            nodes_ip.remove(ip)
 
     # ====================
     # Setup
     # ====================
-    pool = Pool(processes=3)
+    pool = Pool(processes=NUM_PROC_PARALLEL)
     results = []
 
     for ip in nodes_ip:
@@ -89,12 +93,13 @@ def run(args):
         _, _, exit_code = res.get()
         if exit_code == 1:
             print("{} Env Setup fail".format(ip))
+            nodes_ip.remove(ip)
 
     # ===================
     # Connection check
     # parallel, the number of iters is C(n, 2)
     # ====================
-    pool = Pool(processes=3)
+    pool = Pool(processes=NUM_PROC_PARALLEL)
     results = []
 
     comb = list(combinations(nodes_ip, 2))
