@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: UTF-8 -*-
+
 import os
 import time
 import argparse
@@ -9,19 +12,26 @@ def get_args():
     parser = argparse.ArgumentParser()
     return parser.parse_args()
 
-
 def exec_cmd(cmd):
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     stdout, stderr = process.communicate()
     exit_code = process.wait()
+
     return stdout, stderr, exit_code
 
+def make_dir(path):
+    # check whether exist result save file, if not then create
+    if not os.path.isdir(path):
+        os.mkdir(path)
+
+def remove_dir(path):
+    os.system('rm -rf {}'.format(path))
 
 def run(args):
     NUM_PROC_PARALLEL = 5
 
     nodes_ip    = [
-        "172.16.201.4",
+        '172.16.201.4',
         "172.16.201.5",
         "172.16.201.6",
         "172.16.201.7",
@@ -32,110 +42,119 @@ def run(args):
         # "172.16.201.14",
         "172.16.201.100",
     ]
-    server_ip   = "172.16.201.4"
+
+    failed_ip   = []
     
     # Start Time
     st = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
     print("Test Start at {}".format(st))
 
-    # check whether exist result save file, if not then create
-    result_path = ".rose_result"
-    if not os.path.isdir(result_path):
-        os.mkdir(result_path)
+    # result path
+    result_path = "./.rose_result"
+    remove_dir(result_path)
+    make_dir(result_path)
 
     # ====================
     # No password check
     # ====================
     pool = Pool(processes=NUM_PROC_PARALLEL)
-    results = []
+    def nopw_check_handle_func(ip):
+        def f(ret):
+            stdout, stderr, exit_code = ret
+            if exit_code != 0:
+                print("{} no password check fail.".format(ip))
+                nodes_ip.remove(ip)
+            else:
+                print("{} no password check successfully.".format(ip))
+        return f
 
+    results = []
     for ip in nodes_ip:
-        cmd = 'bash nopassword_check.sh {} {}'.format(ip, server_ip)
-        res = pool.apply_async(exec_cmd, (cmd,))
+        cmd = './nopassword_check.sh {}'.format(ip)
+        res = pool.apply_async(exec_cmd, args=(cmd,), callback=nopw_check_handle_func(ip))
         results.append(res)
 
-    pool.close()
-    pool.join()
-    
-    # Handle No password check result
-    for ip, res in zip(nodes_ip, results):
-        _, _, exit_code = res.get()
-        if exit_code == 1:
-            print("{} no password check fail.".format(ip))
-            nodes_ip.remove(ip)
-        else:
-            print("{} no password check successfully.".format(ip))
+    for res in results:
+        res.wait()
 
     # ====================
     # Env check
     # ====================
-    pool = Pool(processes=NUM_PROC_PARALLEL)
-    results = []
+    env_check_result_path = os.path.join(result_path, "./env_check")
+    make_dir(env_check_result_path)
 
+    def env_check_handle_func(ip):
+        def f(ret):
+            stdout, stderr, exit_code = ret
+            if exit_code != 0:
+                print("{} Env check fail".format(ip))
+                nodes_ip.remove(ip)
+            else:
+                print("{} Env check successfully.".format(ip))
+        return f
+
+    results = []
     for ip in nodes_ip:
-        # cmd = './env_check.sh {} {}'.format(ip, os.path.join(result_path, "./env_check"))
-        cmd = 'bash env_check.sh {} {}'.format(ip, result_path)
-        res = pool.apply_async(exec_cmd, (cmd,))
+        cmd = './env_check.sh {} {}'.format(ip, env_check_result_path)
+        res = pool.apply_async(exec_cmd, args=(cmd,), callback=env_check_handle_func(ip))
         results.append(res)
 
-    pool.close()
-    pool.join()
-    
-    # Handle Env check result
-    for ip, res in zip(nodes_ip, results):
-        _, _, exit_code = res.get()
-        if exit_code == 1:
-            print("{} Env check fail".format(ip))
-            nodes_ip.remove(ip)
-        else:
-            print("{} Env check successfully.".format(ip))
+    for res in results:
+        res.wait()
 
     # ====================
     # Setup
     # ====================
-    # pool = Pool(processes=NUM_PROC_PARALLEL)
-    # results = []
+    setup_result_path = os.path.join(result_path, "./setup")
+    make_dir(setup_result_path)
 
-    # for ip in nodes_ip:
-    #     cmd = 'bash setup.sh {} {} {}'.format(ip, "/.roce_check/setup", os.path.join(result_path, "./setup"))
-    #     res = pool.apply_async(exec_cmd, (cmd,))
-    #     results.append(res)
+    def setup_handle_func(ip):
+        def f(ret):
+            stdout, stderr, exit_code = ret
+            if exit_code != 0:
+                print("{} Setup fail".format(ip))
+                nodes_ip.remove(ip)
+            else:
+                print("{} Setup successfully.".format(ip))
+        return f
 
-    # pool.close()
-    # pool.join()
-    
-    # # Handle Setup result
-    # for ip, res in zip(nodes_ip, results):
-    #     _, _, exit_code = res.get()
-    #     if exit_code == 1:
-    #         print("{} Env Setup fail".format(ip))
-    #         nodes_ip.remove(ip)
+    results = []
+    for ip in nodes_ip:
+        cmd = './setup.sh {} {} {}'.format(ip, "/.roce_check/setup", setup_result_path)
+        res = pool.apply_async(exec_cmd, args=(cmd,), callback=setup_handle_func(ip))
+        results.append(res)
+
+    for res in results:
+        res.wait()
 
     # ===================
     # Connection check
     # parallel, the number of iters is C(n, 2)
     # ====================
-    # pool = Pool(processes=NUM_PROC_PARALLEL)
-    # results = []
+    conn_check_result_path = os.path.join(result_path, "./connection_check")
+    make_dir(conn_check_result_path)
 
-    # comb = list(combinations(nodes_ip, 2))
-    # for ip1, ip2 in comb:
-    #     cmd = 'bash connection_check.sh {} {} {} {}'.format(ip1, ip2, "/.roce_check/connection_check", os.path.join(result_path, "./connection_check"))
-    #     res = pool.apply_async(exec_cmd, (cmd,))
-    #     results.append(res)
+    def conn_check_handle_func(ip1, ip2):
+        def f(ret):
+            stdout, stderr, exit_code = ret
+            if exit_code != 0:
+                print("{} <-> {} connection fail, exit code: {}".format(ip1, ip2, exit_code))
+            else:
+                print("{} <-> {} connection successfully.".format(ip1, ip2))
+        return f
+
+    results = []
+    comb = list(combinations(nodes_ip, 2))
+    for ip1, ip2 in comb:
+        cmd = './connection_check.sh {} {} {}'.format(ip1, ip2, conn_check_result_path)
+        res = pool.apply_async(exec_cmd, args=(cmd,), callback=conn_check_handle_func(ip1, ip2))
+        results.append(res)
     
-    # pool.close()
-    # pool.join()
-
-    # # Handle connection check result
-    # for c, res in zip(comb, results):
-    #     _, _, exit_code = res.get()
-    #     if exit_code == 1:
-    #         print("{} <-> {} connection fail".format(c[0],c[1]))
+    pool.close()
+    pool.join()
 
 
     # Other check
-    # for ip1, ip2 in comb:
 
 
 if __name__ == "__main__":
