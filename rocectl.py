@@ -1,20 +1,64 @@
-import argpase
+import argparse
+import os
+import signal
+import backend
+from database import DataBase
 
 def start_test(args):
-    pass
+    # Open IP list file
+    with open(args.ip_list, "r") as f:
+        node_list = f.read()
+        node_list.strip()
+        node_list = node_list.split("\n")
+
+        # TODO: check IP pattern
+        node_list = [ ip.strip() for ip in node_list ]
+
+        pid = backend.launch(node_list)
+        assert pid > 0
+        
+        # Store pid into DataBase
+        db = DataBase(args.db)
+        date = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        db.update_info(pid, date)
+        db.close()
 
 def stop_test(args):
-    pass
+    # Get backend pid from DataBase
+    # Then terminate it
+    db = DataBase(args.db)
+    pid = db.get_pid()
+    if pid < 0:
+        print("No test is running")
+    else:
+        os.kill(pid, signal.SIGTERM)
 
-def moniter_test(args):
-    pass
+
+def monitor_test(args):
+    db = DataBase(args.db)
+    db = DataBase(args.db)
+    pid = db.get_pid()
+    if pid < 0:
+        print("No test is running")
+        return
+    
+    while True:
+        s = db.format_info()
+        s += db.format_top()
+        os.system("clear")
+        print(s)
+        time.sleep(1)
 
 def view_test(args):
     pass
 
+def roce_info(args):
+    print('please run "rocectl {positional argument} --help" to see guidance')
+
 
 def parse_args():
     parser = argparse.ArgumentParser(prog="rocectl", description="use rocectl command to control RoCE environment test")
+    parser.set_defaults(func=roce_info)
     subparsers = parser.add_subparsers()
 
     # start
@@ -27,7 +71,7 @@ def parse_args():
     # stop
     # TODO: how to stop?
     parser_stop = subparsers.add_parser("stop", help="stop a test")
-    parser_top.set_defaults(func=stop_test)
+    parser_stop.set_defaults(func=stop_test)
 
 
     # top
@@ -36,7 +80,7 @@ def parse_args():
 
     
     # view
-    parser_view = subparser.add_parser("view", help="display data")
+    parser_view = subparsers.add_parser("view", help="display data")
     parser_top.set_defaults(func=view_test)
 
 

@@ -1,15 +1,22 @@
 import sqlite3
 
-# ===============
-# Running Experiment Table
+# =================================================================
+# Info Table
+# 
+#   PID |
+#   101 |
+#
+# =================================================================
+
+# =================================================================
+# Top Table
 #   
 #   IP1             |   IP2             |   phase               |   status  |   date
 #   172.168.201.15  |   *               |   nopassword_check    |   RUNNING |   
 #   172.168.201.15  |   172.168.201.16  |   connection_check    |   RUNNING |
 #   172.168.201.15  |   172.168.201.16  |   ucx_test            |   FAIL    |
 #
-# ===============
-
+# =================================================================
 
 class DataBase:
     def __init__(self, path):
@@ -19,6 +26,13 @@ class DataBase:
 
 
     def init_table(self):
+        # info table
+        self.cursor.execute('''CREATE TABLE info  (PID INT NOT NULL); ''')
+        self.conn.commit()
+
+        # insert -1
+        self.update_pid(-1)
+
         # top table
         self.cursor.execute('''CREATE TABLE top 
                             (   IP1 CHAR(16),
@@ -35,6 +49,23 @@ class DataBase:
     def close(self):
         self.cursor.close()
         self.conn.close()
+    
+    def update_info(self, pid, date):
+        self.cursor.execute("REPLACE INTO info (PID) VALUES ({});".format(pid))
+        self.conn.commit()
+
+    def get_pid(self):
+        self.cursor.execute("SELECT IP1 FROM info")
+        row = self.cursor.fetchall()[0]
+        pid = row[0]
+        return pid
+
+    def format_info(self):
+        self.cursor.execute("SELECT * FROM info")
+        row = self.cursor.fetchall()[0]
+        format_str = 'Backend Pid: %d, '
+        now = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        return 'Backend Pid: %d, Start Time: %s, Now: %s\n' % (row[0], row[1], now)
 
     def update_top(self, ip, phase, status, date):
         if isinstance(ip, list):

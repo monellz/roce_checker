@@ -72,7 +72,7 @@ class Consumer(multiprocessing.Process):
             task = self.task_queue.get()
             if task is None:
                 # Poison pill means shutdown
-                # print('{}: Exiting'.format(proc_name))
+                #print('{}: Exiting'.format(proc_name))
                 self.task_queue.task_done()
                 break
             
@@ -99,8 +99,98 @@ class Consumer(multiprocessing.Process):
             self.task_queue.task_done()
             self.result_queue.put(result)
 
+class Producer(multiprocessing.Process):
 
-def run():
+    def __init__(self, nodes_ip, num_consumers, result_path="./.roce_result"):
+        multiprocessing.Process.__init__(self)
+        self.nodes_ip = nodes_ip
+        self.result_path = result_path
+        self.num_consumers = num_consumers
+
+    
+    def run(self):
+        # Init node status
+        nodes_status = {}
+        for ip in self.nodes_ip:
+            nodes_status[ip] = None
+
+        # Establish communication queues
+        tasks = multiprocessing.JoinableQueue()
+        results = multiprocessing.Queue()
+
+        # Create result path
+        remove_dir(self.result_path)
+        make_dir(self.result_path)
+        for kind in TaskKind:
+            make_dir(os.path.join(self.result_path, kind.value))
+
+        # Start consumers
+        print('Creating {} consumers'.format(self.num_consumers))
+        consumers = [
+            Consumer(tasks, results, self.result_path)
+            for _ in range(self.num_consumers)
+        ]
+
+        for w in consumers:
+            w.daemon = True
+            w.start()
+        
+        # Start Time
+        st = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        print("Test Start at {}".format(st))
+
+        # Number of Task have enqueue
+        ntasks = 0
+
+        # Enqueue task first - "no password check"
+        for ip in self.nodes_ip:
+            tasks.put(Task(kind=TaskKind.NOPWCHECK, ip=ip))
+            nodes_status[ip] = TaskKind.NOPWCHECK
+            ntasks += 1
+        
+        conn_check_waiting_list = []
+
+
+        while ntasks > 0:
+            result = results.get()
+            ntasks -= 1
+
+            print('Result: {}'.format(result))
+
+            if result.code == Result.SUCC:
+                # enqueue more task
+                if result.kind == TaskKind.NOPWCHECK:
+                    tasks.put(Task(kind=TaskKind.ENVCHECK, ip=result.ip))
+                    nodes_status[result.ip] = TaskKind.ENVCHECK
+                    ntasks += 1
+
+                elif result.kind == TaskKind.ENVCHECK:
+                    tasks.put(Task(kind=TaskKind.SETUP, ip=result.ip))
+                    nodes_status[result.ip] = TaskKind.SETUP
+                    ntasks += 1
+
+                elif result.kind == TaskKind.SETUP:
+                    for ip in conn_check_waiting_list:
+                        tasks.put(Task(kind=TaskKind.CONNCHECK, ip=[result.ip, ip]))
+                        ntasks += 1
+                    conn_check_waiting_list.append(result.ip)
+                    nodes_status[result.ip] = TaskKind.CONNCHECK
+
+            elif result.code == Result.FAILED:
+                nodes_status[result.ip] = Result.FAILED
+            
+
+        # Wait for all of the tasks to finish
+        tasks.join()
+
+        # Add a poison pill for each consumer
+        for _ in range(self.num_consumers):
+            tasks.put(None)
+
+
+        
+
+def launch(nodes_ip):
     nodes_ip    = [
         '172.16.201.4',
         "172.16.201.5",
@@ -112,88 +202,7 @@ def run():
         "172.16.201.13",
         "172.16.201.14",
         # "172.16.201.100",
-    ]
-
-    # Init node status
-    nodes_status = {}
-    for ip in nodes_ip:
-        nodes_status[ip] = None
-
-    # Create result path
-    result_path = "./.rose_result"
-    remove_dir(result_path)
-    make_dir(result_path)
-    for kind in TaskKind:
-        make_dir(os.path.join(result_path, kind.value))
-
-    # Establish communication queues
-    tasks = multiprocessing.JoinableQueue()
-    results = multiprocessing.Queue()
-
-    # Start consumers
-    num_consumers = 7 #multiprocessing.cpu_count() * 2
-    print('Creating {} consumers'.format(num_consumers))
-    consumers = [
-        Consumer(tasks, results, result_path)
-        for i in range(num_consumers)
-    ]
-    for w in consumers:
-        w.start()
-    
-    #################
-    # Producer
-    #################
-    
-    # Start Time
-    st = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-    print("Test Start at {}".format(st))
-
-    # Number of Task have enqueue
-    ntasks = 0
-
-    # Enqueue task first - "no password check"
-    for ip in nodes_ip:
-        tasks.put(Task(kind=TaskKind.NOPWCHECK, ip=ip))
-        nodes_status[ip] = TaskKind.NOPWCHECK
-        ntasks += 1
-    
-    conn_check_waiting_list = []
-
-    while ntasks > 0:
-        result = results.get()
-        ntasks -= 1
-
-        print('Result: {}'.format(result))
-
-        if result.code == Result.SUCC:
-            # enqueue more task
-            if result.kind == TaskKind.NOPWCHECK:
-                tasks.put(Task(kind=TaskKind.ENVCHECK, ip=result.ip))
-                nodes_status[result.ip] = TaskKind.ENVCHECK
-                ntasks += 1
-
-            elif result.kind == TaskKind.ENVCHECK:
-                tasks.put(Task(kind=TaskKind.SETUP, ip=result.ip))
-                nodes_status[result.ip] = TaskKind.SETUP
-                ntasks += 1
-
-            elif result.kind == TaskKind.SETUP:
-                for ip in conn_check_waiting_list:
-                    tasks.put(Task(kind=TaskKind.CONNCHECK, ip=[result.ip, ip]))
-                    ntasks += 1
-                conn_check_waiting_list.append(result.ip)
-                nodes_status[result.ip] = TaskKind.CONNCHECK
-
-        elif result.code == Result.FAILED:
-            nodes_status[result.ip] = Result.FAILED
-        
-
-    # Wait for all of the tasks to finish
-    tasks.join()
-
-    # Add a poison pill for each consumer
-    for i in range(num_consumers):
-        tasks.put(None)
-
-if __name__ == '__main__':
-    run()
+    ] 
+    producer = Producer(nodes_ip, 7)
+    producer.start()
+    return producer.pid
