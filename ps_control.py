@@ -98,14 +98,6 @@ class Consumer(multiprocessing.Process):
             self.result_queue.put(result)
 
 
-def check_finish(nodes_status):
-    finished = True
-    for _, status in nodes_status.items():
-        if status not in [TaskKind.CONNCHECK, Result.FAILED]:
-            finished = False
-            break
-    return finished
-
 def run():
     nodes_ip    = [
         '172.16.201.4',
@@ -116,8 +108,8 @@ def run():
         "172.16.201.9",
         "172.16.201.10",
         "172.16.201.13",
-        # "172.16.201.14",
-        "172.16.201.100",
+        "172.16.201.14",
+        # "172.16.201.100",
     ]
 
     # Init node status
@@ -129,13 +121,15 @@ def run():
     result_path = "./.rose_result"
     remove_dir(result_path)
     make_dir(result_path)
+    for kind in TaskKind:
+        make_dir(os.path.join(result_path, kind.value))
 
     # Establish communication queues
     tasks = multiprocessing.JoinableQueue()
     results = multiprocessing.Queue()
 
     # Start consumers
-    num_consumers = 5 #multiprocessing.cpu_count() * 2
+    num_consumers = 7 #multiprocessing.cpu_count() * 2
     print('Creating {} consumers'.format(num_consumers))
     consumers = [
         Consumer(tasks, results, result_path)
@@ -152,18 +146,21 @@ def run():
     st = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
     print("Test Start at {}".format(st))
 
-    for kind in TaskKind:
-        make_dir(os.path.join(result_path, kind.value))
+    # Number of Task have enqueue
+    ntasks = 0
 
     # Enqueue task first - "no password check"
     for ip in nodes_ip:
         tasks.put(Task(kind=TaskKind.NOPWCHECK, ip=ip))
         nodes_status[ip] = TaskKind.NOPWCHECK
+        ntasks += 1
     
     conn_check_waiting_list = []
 
-    while True:
+    while ntasks > 0:
         result = results.get()
+        ntasks -= 1
+
         print('Result: {}'.format(result))
 
         if result.code == Result.SUCC:
@@ -171,23 +168,23 @@ def run():
             if result.kind == TaskKind.NOPWCHECK:
                 tasks.put(Task(kind=TaskKind.ENVCHECK, ip=result.ip))
                 nodes_status[result.ip] = TaskKind.ENVCHECK
+                ntasks += 1
 
             elif result.kind == TaskKind.ENVCHECK:
                 tasks.put(Task(kind=TaskKind.SETUP, ip=result.ip))
                 nodes_status[result.ip] = TaskKind.SETUP
+                ntasks += 1
 
             elif result.kind == TaskKind.SETUP:
                 for ip in conn_check_waiting_list:
                     tasks.put(Task(kind=TaskKind.CONNCHECK, ip=[result.ip, ip]))
+                    ntasks += 1
                 conn_check_waiting_list.append(result.ip)
                 nodes_status[result.ip] = TaskKind.CONNCHECK
 
         elif result.code == Result.FAILED:
             nodes_status[result.ip] = Result.FAILED
         
-        # Check Finished
-        if check_finish(nodes_status) is True:
-            break            
 
     # Wait for all of the tasks to finish
     tasks.join()
