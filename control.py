@@ -2,15 +2,12 @@
 # -*- coding: UTF-8 -*-
 
 import os
+import multiprocessing
 import time
-import argparse
-from itertools import combinations
-from multiprocessing import Process, Pool
 import subprocess
+from enum import Enum
 
-def get_args():
-    parser = argparse.ArgumentParser()
-    return parser.parse_args()
+from database import DataBase
 
 def exec_cmd(cmd):
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -27,9 +24,83 @@ def make_dir(path):
 def remove_dir(path):
     os.system('rm -rf {}'.format(path))
 
-def run(args):
-    NUM_PROC_PARALLEL = 5
 
+class TaskKind(Enum):
+    NOPWCHECK   = 'no_passwork_check'
+    ENVCHECK    = 'env_check'
+    SETUP       = 'setup'
+    CONNCHECK   = 'connection_check'
+
+class Task:
+    def __init__(self, kind, ip):
+        self.kind = kind
+        self.ip   = ip
+
+    def __call__(self):
+        return '{} - ip: {}'.format(self.kind, self.ip)
+
+    def __str__(self):
+        return '{} - ip: {},'.format(self.kind, self.ip)
+
+class Result:
+    # Kind
+    SUCC   = 'successful'
+    FAILED = 'failed'
+
+    def __init__(self, kind, ip, code, stdout, stderr):
+        self.kind = kind
+        self.ip   = ip
+        self.code = code
+        self.stdout = stdout
+        self.stderr = stderr
+    
+    def __str__(self):
+        return '{} - ip: {}, code: {}'.format(self.kind, self.ip, self.code)
+
+
+class Consumer(multiprocessing.Process):
+
+    def __init__(self, task_queue, result_queue, res_path):
+        multiprocessing.Process.__init__(self)
+        self.task_queue = task_queue
+        self.result_queue = result_queue
+        self.res_path = res_path
+
+    def run(self):
+        proc_name = self.name
+        while True:
+            task = self.task_queue.get()
+            if task is None:
+                # Poison pill means shutdown
+                # print('{}: Exiting'.format(proc_name))
+                self.task_queue.task_done()
+                break
+            
+            out_path = os.path.join(self.res_path, task.kind.value)
+            if task.kind == TaskKind.NOPWCHECK:
+                cmd = './nopassword_check.sh {}'.format(task.ip)
+            elif task.kind == TaskKind.ENVCHECK:
+                cmd = './env_check.sh {} {}'.format(task.ip, out_path)
+            elif task.kind == TaskKind.SETUP:
+                cmd = './setup.sh {} {}'.format(task.ip, out_path)
+            elif task.kind == TaskKind.CONNCHECK:
+                ip1, ip2 = task.ip[0], task.ip[1]
+                cmd = './connection_check.sh {} {} {}'.format(ip1, ip2, out_path)
+            else:
+                raise NotImplementedError
+
+            stdout, stderr, exit_code = exec_cmd(cmd)
+
+            if exit_code == 0:
+                result = Result(kind=task.kind, ip=task.ip, code=Result.SUCC, stdout=stdout, stderr=stderr)
+            else:
+                result = Result(kind=task.kind, ip=task.ip, code=Result.FAILED, stdout=stdout, stderr=stderr)
+
+            self.task_queue.task_done()
+            self.result_queue.put(result)
+
+
+def run():
     nodes_ip    = [
         '172.16.201.4',
         "172.16.201.5",
@@ -39,124 +110,90 @@ def run(args):
         "172.16.201.9",
         "172.16.201.10",
         "172.16.201.13",
-        # "172.16.201.14",
-        "172.16.201.100",
+        "172.16.201.14",
+        # "172.16.201.100",
     ]
 
-    failed_ip   = []
+    # Init node status
+    nodes_status = {}
+    for ip in nodes_ip:
+        nodes_status[ip] = None
+
+    # Create result path
+    result_path = "./.rose_result"
+    remove_dir(result_path)
+    make_dir(result_path)
+    for kind in TaskKind:
+        make_dir(os.path.join(result_path, kind.value))
+
+    # Establish communication queues
+    tasks = multiprocessing.JoinableQueue()
+    results = multiprocessing.Queue()
+
+    # Start consumers
+    num_consumers = 7 #multiprocessing.cpu_count() * 2
+    print('Creating {} consumers'.format(num_consumers))
+    consumers = [
+        Consumer(tasks, results, result_path)
+        for i in range(num_consumers)
+    ]
+    for w in consumers:
+        w.start()
+    
+    #################
+    # Producer
+    #################
     
     # Start Time
     st = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
     print("Test Start at {}".format(st))
 
-    # result path
-    result_path = "./.rose_result"
-    remove_dir(result_path)
-    make_dir(result_path)
+    # Number of Task have enqueue
+    ntasks = 0
 
-    # ====================
-    # No password check
-    # ====================
-    pool = Pool(processes=NUM_PROC_PARALLEL)
-    def nopw_check_handle_func(ip):
-        def f(ret):
-            stdout, stderr, exit_code = ret
-            if exit_code != 0:
-                print("{} no password check fail.".format(ip))
-                nodes_ip.remove(ip)
-            else:
-                print("{} no password check successfully.".format(ip))
-        return f
-
-    results = []
+    # Enqueue task first - "no password check"
     for ip in nodes_ip:
-        cmd = './nopassword_check.sh {}'.format(ip)
-        res = pool.apply_async(exec_cmd, args=(cmd,), callback=nopw_check_handle_func(ip))
-        results.append(res)
-
-    for res in results:
-        res.wait()
-
-    # ====================
-    # Env check
-    # ====================
-    env_check_result_path = os.path.join(result_path, "./env_check")
-    make_dir(env_check_result_path)
-
-    def env_check_handle_func(ip):
-        def f(ret):
-            stdout, stderr, exit_code = ret
-            if exit_code != 0:
-                print("{} Env check fail".format(ip))
-                nodes_ip.remove(ip)
-            else:
-                print("{} Env check successfully.".format(ip))
-        return f
-
-    results = []
-    for ip in nodes_ip:
-        cmd = './env_check.sh {} {}'.format(ip, env_check_result_path)
-        res = pool.apply_async(exec_cmd, args=(cmd,), callback=env_check_handle_func(ip))
-        results.append(res)
-
-    for res in results:
-        res.wait()
-
-    # ====================
-    # Setup
-    # ====================
-    setup_result_path = os.path.join(result_path, "./setup")
-    make_dir(setup_result_path)
-
-    def setup_handle_func(ip):
-        def f(ret):
-            stdout, stderr, exit_code = ret
-            if exit_code != 0:
-                print("{} Setup fail".format(ip))
-                nodes_ip.remove(ip)
-            else:
-                print("{} Setup successfully.".format(ip))
-        return f
-
-    results = []
-    for ip in nodes_ip:
-        cmd = './setup.sh {} {} {}'.format(ip, "/.roce_check/setup", setup_result_path)
-        res = pool.apply_async(exec_cmd, args=(cmd,), callback=setup_handle_func(ip))
-        results.append(res)
-
-    for res in results:
-        res.wait()
-
-    # ===================
-    # Connection check
-    # parallel, the number of iters is C(n, 2)
-    # ====================
-    conn_check_result_path = os.path.join(result_path, "./connection_check")
-    make_dir(conn_check_result_path)
-
-    def conn_check_handle_func(ip1, ip2):
-        def f(ret):
-            stdout, stderr, exit_code = ret
-            if exit_code != 0:
-                print("{} <-> {} connection fail, exit code: {}".format(ip1, ip2, exit_code))
-            else:
-                print("{} <-> {} connection successfully.".format(ip1, ip2))
-        return f
-
-    results = []
-    comb = list(combinations(nodes_ip, 2))
-    for ip1, ip2 in comb:
-        cmd = './connection_check.sh {} {} {}'.format(ip1, ip2, conn_check_result_path)
-        res = pool.apply_async(exec_cmd, args=(cmd,), callback=conn_check_handle_func(ip1, ip2))
-        results.append(res)
+        tasks.put(Task(kind=TaskKind.NOPWCHECK, ip=ip))
+        nodes_status[ip] = TaskKind.NOPWCHECK
+        ntasks += 1
     
-    pool.close()
-    pool.join()
+    conn_check_waiting_list = []
 
+    while ntasks > 0:
+        result = results.get()
+        ntasks -= 1
 
-    # Other check
+        print('Result: {}'.format(result))
 
+        if result.code == Result.SUCC:
+            # enqueue more task
+            if result.kind == TaskKind.NOPWCHECK:
+                tasks.put(Task(kind=TaskKind.ENVCHECK, ip=result.ip))
+                nodes_status[result.ip] = TaskKind.ENVCHECK
+                ntasks += 1
 
-if __name__ == "__main__":
-    args = get_args()
-    run(args)
+            elif result.kind == TaskKind.ENVCHECK:
+                tasks.put(Task(kind=TaskKind.SETUP, ip=result.ip))
+                nodes_status[result.ip] = TaskKind.SETUP
+                ntasks += 1
+
+            elif result.kind == TaskKind.SETUP:
+                for ip in conn_check_waiting_list:
+                    tasks.put(Task(kind=TaskKind.CONNCHECK, ip=[result.ip, ip]))
+                    ntasks += 1
+                conn_check_waiting_list.append(result.ip)
+                nodes_status[result.ip] = TaskKind.CONNCHECK
+
+        elif result.code == Result.FAILED:
+            nodes_status[result.ip] = Result.FAILED
+        
+
+    # Wait for all of the tasks to finish
+    tasks.join()
+
+    # Add a poison pill for each consumer
+    for i in range(num_consumers):
+        tasks.put(None)
+
+if __name__ == '__main__':
+    run()
