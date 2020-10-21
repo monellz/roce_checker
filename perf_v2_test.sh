@@ -34,7 +34,8 @@ do
 
         # DO TEST
         
-        echo "$case transfer type $type V2 version"
+        #echo "$case transfer type $type V2 version" >> ${OUTPUT_FILE}
+        echo "$case,$type,V2" >> ${OUTPUT_FILE}
         
         # server side
         ssh ${IP2} \
@@ -44,8 +45,7 @@ do
         "inner_type=$type;" \
         "inner_port=${PORT};" \
         '$inner_case -p $inner_port -x $V2_INDEX -d $DEV -c $inner_type --report_gbits;' \
-        'exit' > /dev/null 2>&1 &
-        
+        'exit $?' > /dev/null 2>&1 &
         
         # client side
         for i in {1..3}
@@ -59,7 +59,7 @@ do
             "inner_serverip=$IP2;" \
             "inner_port=${PORT};" \
             '$inner_case $inner_serverip --report_gbits -F -p $inner_port -x $V2_INDEX -d $DEV -c $inner_type;' \
-            'exit' >> ${OUTPUT_FILE} 2>&1
+            'exit $?' >> ${OUTPUT_FILE} 2>&1
 
             if [[ $? -eq 0 ]]; then
                 break
@@ -67,3 +67,32 @@ do
         done
     done
 done
+
+parse_perf_result() {
+    FILE=$1
+    perfsuit=(ib_send_bw ib_read_bw ib_write_bw ib_send_lat ib_read_lat ib_write_lat)
+    for case in ${perfsuit[@]}
+    do
+        baseline=($( cat ${FILE} |grep -n $case |awk -F ":" '{print $1}'))
+        for l in ${baseline[@]}
+        do
+            casename=$(sed -n ''$(($l))'p' ${FILE})
+            tmp=$(mktemp)
+            cat ${FILE} |grep -A 25 -E "$casename"|grep -A 2 "#bytes" > ${tmp}
+            caseresult=$(sed -n '2p' ${tmp} | awk '{print ($4)}')
+            rm -rf ${tmp}
+            if [ ! $caseresult ]; then
+                exit 1
+            else
+                echo $casename","$caseresult
+            fi	
+        done
+    done
+}
+
+if [[ $? -eq 0 ]]; then
+    # get result from file, use stdout
+    parse_perf_result ${OUTPUT_FILE}
+else
+    exit 1
+fi

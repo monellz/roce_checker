@@ -87,6 +87,23 @@ class DataBase:
                                 overall_mr      FLOAT,
                                 PRIMARY KEY (IP1, IP2, type)); ''')
         self.conn.commit()
+
+        # perf_test result
+        # lat: usec
+        # bw: MB/s
+        # mr: msg/s
+
+        self.cursor.execute('''CREATE TABLE perf_test
+                            (   IP1 CHAR(16), 
+                                IP2 CHAR(16),
+                                type            CHAR(15),
+                                transfer_type   CHAR(4),   
+                                version         CHAR(2),
+                                bw              FLOAT,
+                                lat             FLOAT,
+                                PRIMARY KEY (IP1, IP2, type, transfer_type, version)); ''')
+        self.conn.commit()
+
     def close(self):
         self.cursor.close()
         self.conn.close()
@@ -158,12 +175,39 @@ class DataBase:
         self.cursor.execute("SELECT * FROM ucx_test")
         vals = self.cursor.fetchall()
         # only show avg data
-        format_str = '%16s | %16s | %28s | %7d | %15d | %15d | %15d\n'
+        format_str = '%16s | %16s | %28s | %7d | %15f | %15f | %15f\n'
         s = '%16s | %16s | %28s | %7s | %15s | %15s | %15s\n' % ("IP1", "IP2", "type", "iter", "avg_lat(usec)", "avg_bw(MB/s)", "avg_mr(msg/s)")
         for row in vals:
             s += format_str % (row[0], row[1], row[2], row[3], row[5], row[7], row[9])
         return s
 
+    def update_perf_test(self, data):
+        assert isinstance(data, list)
+        assert len(data) == 6
+        if 'lat' in data[2]:
+            cmd = "REPLACE INTO perf_test (IP1, IP2, type, transfer_type, version, bw, lat) VALUES ('{}', '{}', '{}', '{}', '{}', {}, {});".format(data[0], data[1], data[2], data[3], data[4], 'NULL', data[5])
+        elif 'bw' in data[2]:
+            cmd = "REPLACE INTO perf_test (IP1, IP2, type, transfer_type, version, bw, lat) VALUES ('{}', '{}', '{}', '{}', '{}', {}, {});".format(data[0], data[1], data[2], data[3], data[4], data[5], 'NULL')
+        else:
+            raise Exception("Unkown perf test type {}".format(data[2]))
+        self.cursor.execute(cmd)
+        self.conn.commit()
+
+    def format_perf_test(self):
+        self.cursor.execute("SELECT * FROM perf_test")
+        vals = self.cursor.fetchall()
+        format_lat_str = '%16s | %16s | %15s | %15s | %7s | %10s | %10f\n'
+        format_bw_str = '%16s | %16s | %15s | %15s | %7s | %10f | %10s\n'
+        s = '%16s | %16s | %15s | %15s | %7s | %10s | %10s\n' % ("IP1", "IP2", "type", "transfer_type", "version", "bw(Gb/s)", "lat(usec)")
+        for row in vals:
+            if 'lat' in row[2]:
+                s += format_lat_str % (tuple(row))
+            elif 'bw' in row[2]:
+                s += format_bw_str % (tuple(row))
+            else:
+                raise Exception("Unkown perf test type {}".format(row[2]))
+        return s
+        
 
 
 
