@@ -34,6 +34,7 @@ class TaskKind(Enum):
     CONNCHECK   = 'connection_check'
     UCXTEST     = 'ucx_test'
     PERFV2TEST  = 'perf_v2_test'
+    CLEAN       = 'remote_clean'
 
 class Task:
     def __init__(self, kind, ip, port=None):
@@ -111,6 +112,8 @@ class Consumer(multiprocessing.Process):
                 port = task.port
                 cmd = './perf_v2_test.sh {} {} {} {} {}'.format(ip1, ip2, port, out_path, self.target_path)
                 print(cmd)
+            elif task.kind == TaskKind.CLEAN:
+                cmd = './remote_clean.sh {} {}'.format(task.ip, self.target_path)
             else:
                 raise NotImplementedError
 
@@ -312,6 +315,30 @@ class Producer(multiprocessing.Process):
                 self.db.update_top(result.ip, result.kind, Result.ACCEPT, now())
             
 
+        # CleanUp for every remote machine
+        for ip in self.nodes_ip:
+            tasks.put(Task(kind=TaskKind.CLEAN, ip=ip))
+            ntasks += 2
+            self.db.update_top(ip, TaskKind.CLEAN, Result.WAIT, now())
+
+        while ntasks > 0:
+            result = results.get()
+            ntasks -= 1
+
+            print('Result: {}'.format(result))
+            if result.kind == TaskKind.CLEAN:
+                self.db.delete_top(result.ip)
+                if result.code == Result.FAILED:
+                    if type(result.ip) == str:
+                        nodes_status[result.ip] = Result.FAILED
+                        self.db.update_top(result.ip, result.kind, Result.FAILED, now())
+                    else:
+                        pass
+                elif result.code == Result.ACCEPT:
+                    self.db.update_top(result.ip, result.kind, Result.ACCEPT, now())
+            else:
+                raise Exception("Clean must be after all tasks finished")
+        
         # Wait for all of the tasks to finish
         tasks.join()
 
@@ -320,8 +347,6 @@ class Producer(multiprocessing.Process):
             tasks.put(None)
 
         self.db.update_info(-1, end=now())
-
-
 
     def handle_ucx_test_result(self, result):
         ip1 = result.ip[0]
