@@ -35,16 +35,19 @@ def stop_test(args):
 
 def monitor_test(args):
     db = DataBase(args.db)
-    while True:
-        s = db.format_info()
-        s += db.format_top()
-        os.system("clear")
-        print(s)
-        time.sleep(1)
+    try:
+        while True:
+            s = db.format_info()
+            s += db.format_top()
+            os.system("clear")
+            print(s)
+            time.sleep(1)
+    except KeyboardInterrupt:
+        return
 
 def view_test(args):
     db = DataBase(args.db)
-    delim = "=" * 10 + "\n"
+    delim = "=" * 20 + "\n"
     s = delim
     s += "UCX TEST Result\n"
     s += db.format_ucx_test()
