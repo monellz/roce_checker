@@ -36,7 +36,6 @@ def stop_test(args):
 
 def monitor_test(args):
     db = DataBase(args.db)
-    db = DataBase(args.db)
     pid = db.get_pid()
     if pid < 0:
         print("No test is running")
@@ -64,24 +63,27 @@ def parse_args():
     # start
     parser_start = subparsers.add_parser("start", help="start a new test");
     parser_start.add_argument("--ip_list", "-f", required=True, dest="ip_list", help="the path of ip list")
-    parser_start.add_argument("--id", "-i", dest="id", help="test/file id")
+    parser_start.add_argument("--db", "-db", default="roce.db", dest="db", help="the path of database")
     parser_start.set_defaults(func=start_test)
 
 
     # stop
     # TODO: how to stop?
     parser_stop = subparsers.add_parser("stop", help="stop a test")
+    parser_stop.add_argument("--db", "-db", default="roce.db", dest="db", help="the path of database")
     parser_stop.set_defaults(func=stop_test)
 
 
     # top
     parser_top = subparsers.add_parser("top", help="monitor the test")
+    parser_top.add_argument("--db", "-db", default="roce.db", dest="db", help="the path of database")
     parser_top.set_defaults(func=monitor_test)
 
     
     # view
     parser_view = subparsers.add_parser("view", help="display data")
-    parser_top.set_defaults(func=view_test)
+    parser_view.add_argument("--db", "-db", default="roce.db", dest="db", help="the path of database")
+    parser_view.set_defaults(func=view_test)
 
 
     args = parser.parse_args()

@@ -1,4 +1,5 @@
 import sqlite3
+import time
 
 # =================================================================
 # Info Table
@@ -24,14 +25,17 @@ class DataBase:
         self.conn = sqlite3.connect(path)
         self.cursor = self.conn.cursor()
 
+        if not self.available(): self.init_table()
+
 
     def init_table(self):
         # info table
-        self.cursor.execute('''CREATE TABLE info  (PID INT NOT NULL); ''')
+        self.cursor.execute('''CREATE TABLE info  (PID INT NOT NULL, DATE CHAR(20)); ''')
         self.conn.commit()
 
         # insert -1
-        self.update_pid(-1)
+        now = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        self.update_info(-1, now)
 
         # top table
         self.cursor.execute('''CREATE TABLE top 
@@ -51,11 +55,18 @@ class DataBase:
         self.conn.close()
     
     def update_info(self, pid, date):
-        self.cursor.execute("REPLACE INTO info (PID) VALUES ({});".format(pid))
+        self.cursor.execute("REPLACE INTO info (PID, DATE) VALUES ({}, '{}');".format(pid, date))
         self.conn.commit()
+    
+    def available(self):
+        self.cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='info';")
+        row = self.cursor.fetchall()
+        if len(row) == 0:
+            return False 
+        return True
 
     def get_pid(self):
-        self.cursor.execute("SELECT IP1 FROM info")
+        self.cursor.execute("SELECT PID FROM info")
         row = self.cursor.fetchall()[0]
         pid = row[0]
         return pid
