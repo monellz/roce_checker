@@ -137,7 +137,7 @@ class Producer(multiprocessing.Process):
     
     def run(self):
         # Store pid, date into DataBase
-        self.db.update_info(self.pid, now())
+        self.db.update_info(self.pid, start=now())
 
         # Init node status
         nodes_status = {}
@@ -170,7 +170,7 @@ class Producer(multiprocessing.Process):
         def signal_handler(*args):
             for c in consumers:
                 os.kill(c.pid, signal.SIGTERM)
-            db.update_info(-1, now())
+            db.update_info(-1, end=now())
             sys.exit()
         signal.signal(signal.SIGTERM, signal_handler)
 

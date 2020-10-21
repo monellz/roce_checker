@@ -8,7 +8,7 @@ def now():
 # =================================================================
 # Info Table
 # 
-#   PID |   DATE
+#   PID |   START   |   END
 #   101 |
 #
 # =================================================================
@@ -51,11 +51,11 @@ class DataBase:
 
     def init_table(self):
         # info table
-        self.cursor.execute('''CREATE TABLE info  (PID INT NOT NULL, DATE CHAR(20)); ''')
+        self.cursor.execute('''CREATE TABLE info  (PID INT NOT NULL, START CHAR(20), END CHAR(20)); ''')
+        # insert -1
+        self.cursor.execute("INSERT INTO info (PID, START, END) VALUES ({}, '{}', '{}');".format(-1, "*", "*"))
         self.conn.commit()
 
-        # insert -1
-        self.update_info(-1, now())
 
         # top table
         self.cursor.execute('''CREATE TABLE top 
@@ -108,9 +108,12 @@ class DataBase:
         self.cursor.close()
         self.conn.close()
     
-    def update_info(self, pid, date):
-        self.cursor.execute("DELETE FROM info")
-        self.cursor.execute("INSERT INTO info (PID, DATE) VALUES ({}, '{}');".format(pid, date))
+    def update_info(self, pid, start=None, end=None):
+        self.cursor.execute("UPDATE info SET PID={};".format(pid))
+        if start != None:
+            self.cursor.execute("UPDATE info SET START='{}';".format(start))
+        if end != None:
+            self.cursor.execute("UPDATE info SET END='{}';".format(end))
         self.conn.commit()
     
     def available(self):
@@ -129,8 +132,13 @@ class DataBase:
     def format_info(self):
         self.cursor.execute("SELECT * FROM info")
         row = self.cursor.fetchall()[0]
-        format_str = 'Backend Pid: %d, '
-        return 'Backend Pid: %d, Start Time: %s, Now: %s\n' % (row[0], row[1], now())
+        pid = row[0]
+        format_str = 'Backend Pid: %d\n'
+        format_str += "Status: " + ("Running" if pid > 0 else "Done") + "\n"
+        format_str += "Start Time: %s\n"
+        format_str += "End Time: %s\n"
+        format_str += "Now: %s\n"
+        return format_str % (row[0], row[1], row[2], now())
     
     def delete_top(self, ip):
         if isinstance(ip, list):

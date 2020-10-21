@@ -35,11 +35,6 @@ def stop_test(args):
 
 def monitor_test(args):
     db = DataBase(args.db)
-    pid = db.get_pid()
-    if pid < 0:
-        print("No test is running")
-        return
-    
     while True:
         s = db.format_info()
         s += db.format_top()
