@@ -13,11 +13,12 @@ def start_test(args):
         return
     with open(args.ip_list, "r") as f:
         node_list = f.read()
-        node_list.strip()
+        node_list = node_list.strip()
         node_list = node_list.split("\n")
 
         # TODO: check IP pattern
         node_list = [ ip.strip() for ip in node_list ]
+        print(node_list)
 
         backend.launch(node_list, args.db)
         
