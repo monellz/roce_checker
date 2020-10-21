@@ -4,7 +4,7 @@
 
 # For ucx_test:
 # show_gid.sh  test_types_ucp
-FILES=(show_gid.sh test_types_ucp)
+FILES=(show_gid.sh test_types_ucp env_load.sh)
 
 IP=$1
 OUTPUT_DIR=$2
