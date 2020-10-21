@@ -215,7 +215,7 @@ class Producer(multiprocessing.Process):
                         ip1, ip2 = (result.ip, ip) if result.ip < ip else (ip, result.ip)
                         tasks.put(Task(kind=TaskKind.CONNCHECK, ip=[ip1, ip2]))
                         ntasks += 2
-                        self.db.update_top([result.ip, ip], TaskKind.CONNCHECK, Result.WAIT, now())
+                        self.db.update_top([ip1, ip2], TaskKind.CONNCHECK, Result.WAIT, now())
                     conn_check_waiting_list.append(result.ip)
                     nodes_status[result.ip] = TaskKind.CONNCHECK
                 
@@ -243,6 +243,7 @@ class Producer(multiprocessing.Process):
                 elif result.kind == TaskKind.UCXTEST:
                     ip1 = result.ip[0]
                     ip2 = result.ip[1]
+                    self.handle_ucx_test_result(result)
                     
                     UCX_test_nodes_info[ip1]['occupied'] = False
                     UCX_test_nodes_info[ip2]['occupied'] = False
@@ -280,6 +281,8 @@ class Producer(multiprocessing.Process):
                                     break
 
                     # Maybe have to enqueue more task
+                elif result.kind == TaskKind.PERFV2TEST:
+                    self.handle_perf_v2_test_result(result)
 
 
 
@@ -304,13 +307,39 @@ class Producer(multiprocessing.Process):
             tasks.put(None)
 
 
+    def handle_ucx_test_result(self, result):
+        ip1 = result.ip[0]
+        ip2 = result.ip[1]
+        stdout = result.stdout.decode().strip()
+
+        for line in stdout.split('\n'):
+            line = line.strip()
+            words = line.split(",")
+            if words[0].startswith('ucp'):
+                words[1] = words[1].split()[-1]
+                data = [ip1, ip2] + words
+                self.db.update_ucx_test(data)
+
+
+    def handle_perf_v2_test_result(self, result):
+        ip1 = result.ip[0]
+        ip2 = result.ip[1]
+        stdout = result.stdout.decode().strip()
+
+        for line in stdout.split('\n'):
+            line = line.strip()
+            words = line.split(",")
+            if words[0].startswith('ucp'):
+                words[1] = words[1].split()[-1]
+                data = [ip1, ip2] + words
+                self.db.update_ucx_test(data)
         
 
 def launch(nodes_ip, db_path):
     nodes_ip    = [
         '172.16.201.4',
         "172.16.201.5",
-        "172.16.201.6",
+        # "172.16.201.6",
         # "172.16.201.7",
         # "172.16.201.8",
         # "172.16.201.9",
