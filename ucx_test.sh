@@ -47,7 +47,6 @@ done
 exit 1
 remotessh
 
-
 parse_ucx_result() {
     FILE=$1
 

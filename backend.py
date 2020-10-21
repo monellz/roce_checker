@@ -34,9 +34,10 @@ class TaskKind(Enum):
     PERFV2TEST  = 'perf_v2_test'
 
 class Task:
-    def __init__(self, kind, ip):
+    def __init__(self, kind, ip, port=None):
         self.kind = kind
         self.ip   = ip
+        self.port = port
 
     def __call__(self):
         return '{} - ip: {}'.format(self.kind, self.ip)
@@ -98,6 +99,16 @@ class Consumer(multiprocessing.Process):
             elif task.kind == TaskKind.CONNCHECK:
                 ip1, ip2 = task.ip[0], task.ip[1]
                 cmd = './connection_check.sh {} {} {}'.format(ip1, ip2, out_path)
+            elif task.kind == TaskKind.UCXTEST:
+                ip1, ip2 = task.ip[0], task.ip[1]
+                port = task.port
+                cmd = './ucx_test.sh {} {} {} {} {}'.format(ip1, ip2, port, out_path, self.target_path)
+                print(cmd)
+            elif task.kind == TaskKind.PERFV2TEST:
+                ip1, ip2 = task.ip[0], task.ip[1]
+                port = task.port
+                cmd = './perf_v2_test.sh {} {} {} {} {}'.format(ip1, ip2, port, out_path, self.target_path)
+                print(cmd)
             else:
                 raise NotImplementedError
 
@@ -167,7 +178,16 @@ class Producer(multiprocessing.Process):
             self.db.update_top(ip, TaskKind.NOPWCHECK, Result.WAIT, now())
         
         conn_check_waiting_list = []
-
+        
+        # Generate port List for ucx test
+        # [1001, 1002, ..., 1000+len(nodes_ip)]
+        port_list = [1001+i for i in range(0, len(self.nodes_ip))]
+        UCX_test_nodes_info = {}
+        for ip in self.nodes_ip:
+            UCX_test_nodes_info[ip] = {}
+            UCX_test_nodes_info[ip]['occupied'] = False
+            UCX_test_nodes_info[ip]['dep_list'] = []
+        
 
         while ntasks > 0:
             result = results.get()
@@ -192,15 +212,83 @@ class Producer(multiprocessing.Process):
                 elif result.kind == TaskKind.SETUP:
                     self.db.delete_top(result.ip)
                     for ip in conn_check_waiting_list:
-                        tasks.put(Task(kind=TaskKind.CONNCHECK, ip=[result.ip, ip]))
+                        ip1, ip2 = (result.ip, ip) if result.ip < ip else (ip, result.ip)
+                        tasks.put(Task(kind=TaskKind.CONNCHECK, ip=[ip1, ip2]))
                         ntasks += 2
                         self.db.update_top([result.ip, ip], TaskKind.CONNCHECK, Result.WAIT, now())
                     conn_check_waiting_list.append(result.ip)
                     nodes_status[result.ip] = TaskKind.CONNCHECK
+                
+                elif result.kind == TaskKind.CONNCHECK:
+                    ip1 = result.ip[0]
+                    ip2 = result.ip[1]
+
+                    if UCX_test_nodes_info[ip1]['occupied'] is False and \
+                        UCX_test_nodes_info[ip2]['occupied'] is False:
+                        # both ip is available
+                        idx = (self.nodes_ip.index(ip1) + self.nodes_ip.index(ip2)) % len(self.nodes_ip)
+                        port = port_list[idx]
+
+                        tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip1, ip2], port=port))
+                        ntasks += 2
+                        
+                        # Occupied
+                        UCX_test_nodes_info[ip1]['occupied'] = True
+                        UCX_test_nodes_info[ip2]['occupied'] = True
+                    else:
+                        # at lease have one ip is not available
+                        UCX_test_nodes_info[ip1]['dep_list'].append(ip2)
+                        UCX_test_nodes_info[ip2]['dep_list'].append(ip1)
+
+                elif result.kind == TaskKind.UCXTEST:
+                    ip1 = result.ip[0]
+                    ip2 = result.ip[1]
+                    
+                    UCX_test_nodes_info[ip1]['occupied'] = False
+                    UCX_test_nodes_info[ip2]['occupied'] = False
+
+                    # if do not have other ucx task (dependent edge), do the perf_v2_test
+                    # if len(UCX_test_nodes_info[ip1]['dep_list']) == 0 and \
+                    #     len(UCX_test_nodes_info[ip2]['dep_list']) == 0:
+
+                    # Do perf_v2_test
+                    idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
+                    port = port_list[idx]
+                    tasks.put(Task(kind=TaskKind.PERFV2TEST, ip=[ip1, ip2], port=port))
+                    ntasks += 2
+
+                    # Find dependence, and Enqueue new task
+                    for ipx in result.ip:
+                        if len(UCX_test_nodes_info[ipx]['dep_list']) > 0:
+                            for ipy in UCX_test_nodes_info[ipx]['dep_list']:
+                                if UCX_test_nodes_info[ipy]['occupied'] is False:
+                                    ip1, ip2 = (ipx, ipy) if ipx < ipy else (ipy, ipx)
+                                    idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
+                                    port = port_list[idx]
+
+                                    tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip1, ip2], port=port))
+                                    ntasks += 2
+                                    
+                                    # Occupied
+                                    UCX_test_nodes_info[ip1]['occupied'] = True
+                                    UCX_test_nodes_info[ip2]['occupied'] = True
+
+                                    # Remove from List
+                                    UCX_test_nodes_info[ip1]['dep_list'].remove(ip2)
+                                    UCX_test_nodes_info[ip2]['dep_list'].remove(ip1)
+
+                                    break
+
+                    # Maybe have to enqueue more task
+
+
 
             elif result.code == Result.FAILED:
-                nodes_status[result.ip] = Result.FAILED
-                self.db.update_top(result.ip, result.kind, Result.FAILED, now())
+                if type(result.ip) == str:
+                    nodes_status[result.ip] = Result.FAILED
+                    self.db.update_top(result.ip, result.kind, Result.FAILED, now())
+                else:
+                    pass
 
             elif result.code == Result.ACCEPT:
                 # Update database
@@ -223,12 +311,12 @@ def launch(nodes_ip, db_path):
         '172.16.201.4',
         "172.16.201.5",
         "172.16.201.6",
-        "172.16.201.7",
-        "172.16.201.8",
-        "172.16.201.9",
-        "172.16.201.10",
-        "172.16.201.13",
-        "172.16.201.14",
+        # "172.16.201.7",
+        # "172.16.201.8",
+        # "172.16.201.9",
+        # "172.16.201.10",
+        # "172.16.201.13",
+        # "172.16.201.14",
         # "172.16.201.100",
     ] 
     producer = Producer(nodes_ip, 7, db_path)
