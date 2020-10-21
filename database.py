@@ -8,7 +8,7 @@ def now():
 # =================================================================
 # Info Table
 # 
-#   PID |
+#   PID |   DATE
 #   101 |
 #
 # =================================================================
@@ -20,6 +20,23 @@ def now():
 #   172.168.201.15  |   *               |   nopassword_check    |   RUNNING |   
 #   172.168.201.15  |   172.168.201.16  |   connection_check    |   RUNNING |
 #   172.168.201.15  |   172.168.201.16  |   ucx_test            |   FAIL    |
+#
+# =================================================================
+
+
+# =================================================================
+# UCX_TEST Result Table
+#   
+#   IP1             |   IP2             |   case    |   iter  |   typical_lat(us)  |   avg_lat(us)  |   overall_lat(us) |   avg_bw(MB/s)  | overall_bw(MB/s)    |   avg_mr(msg/s)  |   overall_mr(msg/s) 
+#   172.168.201.15  |   172.168.201.16  |   ucp_get |           
+#   172.168.201.15  |   172.168.201.16  |           |
+#
+#
+# =================================================================
+
+
+# =================================================================
+# PERF_V2_TEST Result Table
 #
 # =================================================================
 
@@ -52,7 +69,24 @@ class DataBase:
 
         # DATA
         # ucx_test result
+        # lat: usec
+        # bw: MB/s
+        # mr: msg/s
 
+        self.cursor.execute('''CREATE TABLE ucx_test
+                            (   IP1 CHAR(16), 
+                                IP2 CHAR(16),
+                                type    CHAR(28),
+                                iter    INT,   
+                                typical_lat     FLOAT,
+                                avg_lat         FLOAT,
+                                overall_lat     FLOAT,
+                                avg_bw          FLOAT,
+                                overall_bw      FLOAT,
+                                avg_mr          FLOAT,
+                                overall_mr      FLOAT,
+                                PRIMARY KEY (IP1, IP2, type)); ''')
+        self.conn.commit()
     def close(self):
         self.cursor.close()
         self.conn.close()
@@ -110,23 +144,28 @@ class DataBase:
         format_str = '%16s | %16s | %20s | %10s | %20s \n'
         s = format_str % ("IP1", "IP2", "PHASE", "STATUS", "DATE")
         for row in vals:
-            s += format_str % (row[0], row[1], row[2], row[3], row[4]) 
+            s += format_str % (tuple(row)) 
         return s
         
+    def update_ucx_test(self, data):
+        assert isinstance(data, list)
+        assert len(data) == 11
+        cmd = "REPLACE INTO ucx_test (IP1, IP2, type, iter, typical_lat, avg_lat, overall_lat, avg_bw, overall_bw, avg_mr, overall_mr) VALUES ('{}', '{}', '{}', {}, {}, {}, {}, {}, {}, {}, {});".format(*data)
+        self.cursor.execute(cmd)
+        self.conn.commit()
+
+    def format_ucx_test(self):
+        self.cursor.execute("SELECT * FROM ucx_test")
+        vals = self.cursor.fetchall()
+        # only show avg data
+        format_str = '%16s | %16s | %28s | %7d | %15d | %15d | %15d\n'
+        s = '%16s | %16s | %28s | %7s | %15s | %15s | %15s\n' % ("IP1", "IP2", "type", "iter", "avg_lat(usec)", "avg_bw(MB/s)", "avg_mr(msg/s)")
+        for row in vals:
+            s += format_str % (row[0], row[1], row[2], row[3], row[5], row[7], row[9])
+        return s
 
 
-# ===============
-# UCX_TEST Result Table
-#   
-#   target                          |   bindwidth            
-#   172.168.201.15-172.168.201.16   |   
-#   172.168.201.15-172.168.201.16   |             
-#
-#
-#   target:     one ip or two ips(joined by '-')
-#   bindwidth:    
-#
-# ===============
+
 
 
 
