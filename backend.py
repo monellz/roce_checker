@@ -30,6 +30,8 @@ class TaskKind(Enum):
     ENVCHECK    = 'env_check'
     SETUP       = 'setup'
     CONNCHECK   = 'connection_check'
+    UCXTEST     = 'ucx_test'
+    PERFV2TEST  = 'perf_v2_test'
 
 class Task:
     def __init__(self, kind, ip):
@@ -60,11 +62,15 @@ class Result:
 
 class Consumer(multiprocessing.Process):
 
-    def __init__(self, task_queue, result_queue, res_path):
+    def __init__(self, task_queue, result_queue, res_path, target_path):
         multiprocessing.Process.__init__(self)
         self.task_queue = task_queue
         self.result_queue = result_queue
+
+        # res_path: Path of result directory in master machine
+        # target_path: Path of directory in remote machine
         self.res_path = res_path
+        self.target_path = target_path
 
     def run(self):
         proc_name = self.name
@@ -82,7 +88,7 @@ class Consumer(multiprocessing.Process):
             elif task.kind == TaskKind.ENVCHECK:
                 cmd = './env_check.sh {} {}'.format(task.ip, out_path)
             elif task.kind == TaskKind.SETUP:
-                cmd = './setup.sh {} {}'.format(task.ip, out_path)
+                cmd = './setup.sh {} {} {}'.format(task.ip, out_path, self.target_path)
             elif task.kind == TaskKind.CONNCHECK:
                 ip1, ip2 = task.ip[0], task.ip[1]
                 cmd = './connection_check.sh {} {} {}'.format(ip1, ip2, out_path)
@@ -101,10 +107,11 @@ class Consumer(multiprocessing.Process):
 
 class Producer(multiprocessing.Process):
 
-    def __init__(self, nodes_ip, num_consumers, result_path="./.roce_result"):
+    def __init__(self, nodes_ip, num_consumers, result_path="./.roce_result", target_path="/root/.roce"):
         multiprocessing.Process.__init__(self)
         self.nodes_ip = nodes_ip
         self.result_path = result_path
+        self.target_path = target_path
         self.num_consumers = num_consumers
 
     
@@ -127,7 +134,7 @@ class Producer(multiprocessing.Process):
         # Start consumers
         print('Creating {} consumers'.format(self.num_consumers))
         consumers = [
-            Consumer(tasks, results, self.result_path)
+            Consumer(tasks, results, self.result_path, self.target_path)
             for _ in range(self.num_consumers)
         ]
 

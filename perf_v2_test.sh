@@ -5,8 +5,8 @@
 IP1=$1
 IP2=$2
 
-TARGET_DIR=$3
-OUTPUT_DIR=$4
+OUTPUT_DIR=$3
+TARGET_DIR=$4
 
 OUTPUT_FILE=${OUTPUT_DIR}/${IP1}-${IP2}.perf_v2.result
 
@@ -55,7 +55,7 @@ do
             "inner_case=$case;" \
             "inner_type=$type;" \
             "inner_serverip=$IP2;" \
-            '$inner_case $inner_serverip --report_gbits -F -x $V2_INDEX -d $DEV -c $inner_type;" \
+            '$inner_case $inner_serverip --report_gbits -F -x $V2_INDEX -d $DEV -c $inner_type;' \
             'exit' > ${OUTPUT_FILE} 2>&1
 
             if [[ $? -eq 0 ]]; then

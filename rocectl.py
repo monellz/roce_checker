@@ -1,11 +1,16 @@
 import argparse
 import os
 import signal
+import time
+
 import backend
 from database import DataBase
 
 def start_test(args):
     # Open IP list file
+    pid = os.fork()
+    if pid != 0:
+        return
     with open(args.ip_list, "r") as f:
         node_list = f.read()
         node_list.strip()
@@ -49,7 +54,10 @@ def monitor_test(args):
         time.sleep(1)
 
 def view_test(args):
-    pass
+    db = DataBase(args.db)
+    s = db.format_info()
+    s += db.format_top()
+    print(s)
 
 def roce_info(args):
     print('please run "rocectl {positional argument} --help" to see guidance')

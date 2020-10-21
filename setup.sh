@@ -7,8 +7,8 @@
 FILES=(show_gid.sh test_types_ucp)
 
 IP=$1
-TARGET_DIR=$2
-OUTPUT_DIR=$3
+OUTPUT_DIR=$2
+TARGET_DIR=$3
 
 for f in ${FILES[@]}
 do 
