@@ -2,8 +2,10 @@
 # -*- coding: UTF-8 -*-
 
 import os
+import sys
 import multiprocessing
 import time
+import signal
 import subprocess
 from enum import Enum
 
@@ -142,6 +144,8 @@ class Producer(multiprocessing.Process):
         for ip in self.nodes_ip:
             nodes_status[ip] = None
 
+        num_consumers = self.num_consumers
+
         # Establish communication queues
         tasks = multiprocessing.JoinableQueue()
         results = multiprocessing.Queue()
@@ -163,6 +167,13 @@ class Producer(multiprocessing.Process):
             w.daemon = True
             w.start()
         
+
+        def signal_handler(*args):
+            for c in consumers:
+                os.kill(c.pid, signal.SIGTERM)
+            sys.exit()
+        signal.signal(signal.SIGTERM, signal_handler)
+
         # Start Time
         print("Test Start at {}".format(now()))
 
@@ -220,6 +231,7 @@ class Producer(multiprocessing.Process):
                     nodes_status[result.ip] = TaskKind.CONNCHECK
                 
                 elif result.kind == TaskKind.CONNCHECK:
+                    self.db.delete_top(result.ip)
                     ip1 = result.ip[0]
                     ip2 = result.ip[1]
 
@@ -241,6 +253,8 @@ class Producer(multiprocessing.Process):
                         UCX_test_nodes_info[ip2]['dep_list'].append(ip1)
 
                 elif result.kind == TaskKind.UCXTEST:
+                    self.db.delete_top(result.ip)
+
                     ip1 = result.ip[0]
                     ip2 = result.ip[1]
                     self.handle_ucx_test_result(result)
@@ -258,7 +272,12 @@ class Producer(multiprocessing.Process):
                     tasks.put(Task(kind=TaskKind.PERFV2TEST, ip=[ip1, ip2], port=port))
                     ntasks += 2
 
-                    # Find dependence, and Enqueue new task
+                    # Maybe have to enqueue more task
+                elif result.kind == TaskKind.PERFV2TEST:
+                    self.db.delete_top(result.ip)
+                    self.handle_perf_v2_test_result(result)
+
+                    # Find dependence, and Enqueue new UCX task
                     for ipx in result.ip:
                         if len(UCX_test_nodes_info[ipx]['dep_list']) > 0:
                             for ipy in UCX_test_nodes_info[ipx]['dep_list']:
@@ -279,11 +298,6 @@ class Producer(multiprocessing.Process):
                                     UCX_test_nodes_info[ip2]['dep_list'].remove(ip1)
 
                                     break
-
-                    # Maybe have to enqueue more task
-                elif result.kind == TaskKind.PERFV2TEST:
-                    self.handle_perf_v2_test_result(result)
-
 
 
             elif result.code == Result.FAILED:
@@ -339,13 +353,13 @@ def launch(nodes_ip, db_path):
     nodes_ip    = [
         '172.16.201.4',
         "172.16.201.5",
-        # "172.16.201.6",
-        # "172.16.201.7",
-        # "172.16.201.8",
-        # "172.16.201.9",
-        # "172.16.201.10",
-        # "172.16.201.13",
-        # "172.16.201.14",
+        "172.16.201.6",
+        "172.16.201.7",
+        "172.16.201.8",
+        "172.16.201.9",
+        "172.16.201.10",
+        "172.16.201.13",
+        "172.16.201.14",
         # "172.16.201.100",
     ] 
     producer = Producer(nodes_ip, 7, db_path)
