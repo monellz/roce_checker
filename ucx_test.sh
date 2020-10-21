@@ -29,7 +29,7 @@ ssh ${IP2} \
 
 # client side
 
-ssh ${IP1 \
+ssh ${IP1} \
 "cd ${TARGET_DIR};" \
 "source env_load.sh ${IP1} ${TARGET_DIR};" \
 'pkill ucx_perftest;' \
@@ -61,9 +61,9 @@ parse_ucx_result() {
     perfsuit=(ucp_iov_contig_tag_lat ucp_iov_iov_tag_lat ucp_contig_contig_tag_lat ucp_iov_contig_tag_bw ucp_iov_iov_tag_bw ucp_contig_contig_tag_bw ucp_sync_tag_lat ucp_unexp_tag_lat ucp_wild_tag_lat ucp_stream_bw ucp_stream_lat ucp_put_lat ucp_put_bw ucp_get)
 }
 
-if [[ $? -eq 0]]; then
-    # get result from file, use stdout
-    parse_ucx_result ${OUTPUT_FILE}
-else
-    exit 1
-fi
+# if [[ $? -eq 0]]; then
+#     # get result from file, use stdout
+#     parse_ucx_result ${OUTPUT_FILE}
+# else
+#     exit 1
+# fi
