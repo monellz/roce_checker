@@ -29,7 +29,7 @@ check_roce_mpi_health() {
 }
 
 check_cpu_number() {
-    num=$(lscpu | awk '/CPU:/{print $2}')
+    num=$(lscpu | awk '/^CPU(\(s\))?:/{print $2}')
     if [ ! $num ]; then
         echo "CPU check failed"
         exit 1
