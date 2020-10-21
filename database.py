@@ -1,6 +1,10 @@
 import sqlite3
 import time
 
+def now():
+    return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+
+
 # =================================================================
 # Info Table
 # 
@@ -34,8 +38,7 @@ class DataBase:
         self.conn.commit()
 
         # insert -1
-        now = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-        self.update_info(-1, now)
+        self.update_info(-1, now())
 
         # top table
         self.cursor.execute('''CREATE TABLE top 
@@ -75,10 +78,21 @@ class DataBase:
         self.cursor.execute("SELECT * FROM info")
         row = self.cursor.fetchall()[0]
         format_str = 'Backend Pid: %d, '
-        now = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-        return 'Backend Pid: %d, Start Time: %s, Now: %s\n' % (row[0], row[1], now)
+        return 'Backend Pid: %d, Start Time: %s, Now: %s\n' % (row[0], row[1], now())
+    
+    def delete_top(self, ip):
+        if isinstance(ip, list):
+            assert len(ip) == 2
+            ip1 = ip[0]
+            ip2 = ip[1]
+        else:
+            ip1 = ip
+            ip2 = "*"
+        cmd = "DELETE from top WHERE IP1='{}' AND IP2='{}'".format(ip1, ip2)
+        self.cursor.execute(cmd)
+        self.conn.commit()
 
-    def update_top(self, ip, phase, status, date):
+    def update_top(self, ip, phase, status, date, delete=False):
         if isinstance(ip, list):
             assert len(ip) == 2
             ip1 = ip[0]

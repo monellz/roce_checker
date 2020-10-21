@@ -7,7 +7,7 @@ import time
 import subprocess
 from enum import Enum
 
-from database import DataBase
+from database import DataBase, now
 
 def exec_cmd(cmd):
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -46,10 +46,12 @@ class Task:
 
 class Result:
     # Kind
+    WAIT   = 'waiting'
+    ACCEPT = 'running'
     SUCC   = 'successful'
     FAILED = 'failed'
 
-    def __init__(self, kind, ip, code, stdout, stderr):
+    def __init__(self, kind, ip, code, stdout=None, stderr=None):
         self.kind = kind
         self.ip   = ip
         self.code = code
@@ -81,6 +83,10 @@ class Consumer(multiprocessing.Process):
                 #print('{}: Exiting'.format(proc_name))
                 self.task_queue.task_done()
                 break
+
+            # ACCEPT the task
+            accept_result = Result(task.kind, ip=task.ip, code=Result.ACCEPT)
+            self.result_queue.put(accept_result)
             
             out_path = os.path.join(self.res_path, task.kind.value)
             if task.kind == TaskKind.NOPWCHECK:
@@ -107,15 +113,19 @@ class Consumer(multiprocessing.Process):
 
 class Producer(multiprocessing.Process):
 
-    def __init__(self, nodes_ip, num_consumers, result_path="./.roce_result", target_path="/root/.roce"):
+    def __init__(self, nodes_ip, num_consumers, db_path, result_path="./.roce_result", target_path="/root/.roce"):
         multiprocessing.Process.__init__(self)
         self.nodes_ip = nodes_ip
         self.result_path = result_path
         self.target_path = target_path
         self.num_consumers = num_consumers
 
+        self.db = DataBase(db_path)
     
     def run(self):
+        # Store pid, date into DataBase
+        self.db.update_info(self.pid, now())
+
         # Init node status
         nodes_status = {}
         for ip in self.nodes_ip:
@@ -143,8 +153,7 @@ class Producer(multiprocessing.Process):
             w.start()
         
         # Start Time
-        st = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-        print("Test Start at {}".format(st))
+        print("Test Start at {}".format(now()))
 
         # Number of Task have enqueue
         ntasks = 0
@@ -153,7 +162,9 @@ class Producer(multiprocessing.Process):
         for ip in self.nodes_ip:
             tasks.put(Task(kind=TaskKind.NOPWCHECK, ip=ip))
             nodes_status[ip] = TaskKind.NOPWCHECK
-            ntasks += 1
+            # +2 because there is ACCEPT and SUCC -> two result
+            ntasks += 2
+            self.db.update_top(ip, TaskKind.NOPWCHECK, Result.WAIT, now())
         
         conn_check_waiting_list = []
 
@@ -169,24 +180,34 @@ class Producer(multiprocessing.Process):
                 if result.kind == TaskKind.NOPWCHECK:
                     tasks.put(Task(kind=TaskKind.ENVCHECK, ip=result.ip))
                     nodes_status[result.ip] = TaskKind.ENVCHECK
-                    ntasks += 1
+                    ntasks += 2
+                    self.db.update_top(result.ip, TaskKind.ENVCHECK, Result.WAIT, now())
 
                 elif result.kind == TaskKind.ENVCHECK:
                     tasks.put(Task(kind=TaskKind.SETUP, ip=result.ip))
                     nodes_status[result.ip] = TaskKind.SETUP
-                    ntasks += 1
+                    ntasks += 2
+                    self.db.update_top(result.ip, TaskKind.SETUP, Result.WAIT, now())
 
                 elif result.kind == TaskKind.SETUP:
+                    self.db.delete_top(result.ip)
                     for ip in conn_check_waiting_list:
                         tasks.put(Task(kind=TaskKind.CONNCHECK, ip=[result.ip, ip]))
-                        ntasks += 1
+                        ntasks += 2
+                        self.db.update_top([result.ip, ip], TaskKind.CONNCHECK, Result.WAIT, now())
                     conn_check_waiting_list.append(result.ip)
                     nodes_status[result.ip] = TaskKind.CONNCHECK
 
             elif result.code == Result.FAILED:
                 nodes_status[result.ip] = Result.FAILED
+                self.db.update_top(result.ip, result.kind, Result.FAILED, now())
+
+            elif result.code == Result.ACCEPT:
+                # Update database
+                self.db.update_top(result.ip, result.kind, Result.ACCEPT, now())
             
 
+        print("Producer ntasks = {}, prepare to join".format(ntasks))
         # Wait for all of the tasks to finish
         tasks.join()
 
@@ -197,7 +218,7 @@ class Producer(multiprocessing.Process):
 
         
 
-def launch(nodes_ip):
+def launch(nodes_ip, db_path):
     nodes_ip    = [
         '172.16.201.4',
         "172.16.201.5",
@@ -210,6 +231,5 @@ def launch(nodes_ip):
         "172.16.201.14",
         # "172.16.201.100",
     ] 
-    producer = Producer(nodes_ip, 7)
+    producer = Producer(nodes_ip, 7, db_path)
     producer.start()
-    return producer.pid

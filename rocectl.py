@@ -19,15 +19,8 @@ def start_test(args):
         # TODO: check IP pattern
         node_list = [ ip.strip() for ip in node_list ]
 
-        pid = backend.launch(node_list)
-        assert pid > 0
+        backend.launch(node_list, args.db)
         
-        # Store pid into DataBase
-        db = DataBase(args.db)
-        date = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
-        db.update_info(pid, date)
-        db.close()
-
 def stop_test(args):
     # Get backend pid from DataBase
     # Then terminate it
