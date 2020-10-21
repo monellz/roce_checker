@@ -109,7 +109,8 @@ class DataBase:
         self.conn.close()
     
     def update_info(self, pid, date):
-        self.cursor.execute("REPLACE INTO info (PID, DATE) VALUES ({}, '{}');".format(pid, date))
+        self.cursor.execute("DELETE FROM info")
+        self.cursor.execute("INSERT INTO info (PID, DATE) VALUES ({}, '{}');".format(pid, date))
         self.conn.commit()
     
     def available(self):
