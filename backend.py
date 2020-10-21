@@ -312,13 +312,15 @@ class Producer(multiprocessing.Process):
                 self.db.update_top(result.ip, result.kind, Result.ACCEPT, now())
             
 
-        print("Producer ntasks = {}, prepare to join".format(ntasks))
         # Wait for all of the tasks to finish
         tasks.join()
 
         # Add a poison pill for each consumer
         for _ in range(self.num_consumers):
             tasks.put(None)
+
+        self.db.update_info(-1, end=now())
+
 
 
     def handle_ucx_test_result(self, result):
