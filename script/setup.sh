@@ -5,6 +5,7 @@
 # For ucx_test:
 # show_gid.sh  test_types_ucp
 FILES=(show_gid.sh test_types_ucp env_load.sh)
+FILES=("${FILES[@]/#/script\/}")
 
 IP=$1
 OUTPUT_DIR=$2
@@ -12,6 +13,7 @@ TARGET_DIR=$3
 
 for f in ${FILES[@]}
 do 
+    echo $f
     if [ ! -f $f ]; then
         echo "Cannot find $f here"
         exit 1

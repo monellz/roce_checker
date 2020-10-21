@@ -94,26 +94,26 @@ class Consumer(multiprocessing.Process):
             
             out_path = os.path.join(self.res_path, task.kind.value)
             if task.kind == TaskKind.NOPWCHECK:
-                cmd = './nopassword_check.sh {}'.format(task.ip)
+                cmd = './script/nopassword_check.sh {}'.format(task.ip)
             elif task.kind == TaskKind.ENVCHECK:
-                cmd = './env_check.sh {} {}'.format(task.ip, out_path)
+                cmd = './script/env_check.sh {} {}'.format(task.ip, out_path)
             elif task.kind == TaskKind.SETUP:
-                cmd = './setup.sh {} {} {}'.format(task.ip, out_path, self.target_path)
+                cmd = './script/setup.sh {} {} {}'.format(task.ip, out_path, self.target_path)
             elif task.kind == TaskKind.CONNCHECK:
                 ip1, ip2 = task.ip[0], task.ip[1]
-                cmd = './connection_check.sh {} {} {}'.format(ip1, ip2, out_path)
+                cmd = './script/connection_check.sh {} {} {}'.format(ip1, ip2, out_path)
             elif task.kind == TaskKind.UCXTEST:
                 ip1, ip2 = task.ip[0], task.ip[1]
                 port = task.port
-                cmd = './ucx_test.sh {} {} {} {} {}'.format(ip1, ip2, port, out_path, self.target_path)
+                cmd = './script/ucx_test.sh {} {} {} {} {}'.format(ip1, ip2, port, out_path, self.target_path)
                 print(cmd)
             elif task.kind == TaskKind.PERFV2TEST:
                 ip1, ip2 = task.ip[0], task.ip[1]
                 port = task.port
-                cmd = './perf_v2_test.sh {} {} {} {} {}'.format(ip1, ip2, port, out_path, self.target_path)
+                cmd = './script/perf_v2_test.sh {} {} {} {} {}'.format(ip1, ip2, port, out_path, self.target_path)
                 print(cmd)
             elif task.kind == TaskKind.CLEAN:
-                cmd = './remote_clean.sh {} {}'.format(task.ip, self.target_path)
+                cmd = './script/remote_clean.sh {} {}'.format(task.ip, self.target_path)
             else:
                 raise NotImplementedError
 

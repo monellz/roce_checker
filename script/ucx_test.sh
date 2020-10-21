@@ -25,7 +25,7 @@ ssh ${IP2} \
 'export UCX_TLS=rc;' \
 'export UCX_NET_DEVICES=${DEV}:${V2_PORT};' \
 "ucx_perftest -b test_types_ucp -p ${PORT};" \
-'exit' > /dev/null 2>&1 &
+'exit $?' > /dev/null 2>&1 &
 
 # client side
 

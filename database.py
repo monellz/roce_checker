@@ -107,6 +107,13 @@ class DataBase:
     def close(self):
         self.cursor.close()
         self.conn.close()
+
+    def clear(self):
+        # We should not delete data from info
+        self.cursor.execute("DELETE FROM top")
+        self.cursor.execute("DELETE FROM ucx_test")
+        self.cursor.execute("DELETE FROM perf_test")
+        self.conn.commit()
     
     def update_info(self, pid, start=None, end=None):
         self.cursor.execute("UPDATE info SET PID={};".format(pid))
