@@ -4,9 +4,10 @@
 # IP2 as the server
 IP1=$1
 IP2=$2
+PORT=$3
 
-OUTPUT_DIR=$3
-TARGET_DIR=$4
+OUTPUT_DIR=$4
+TARGET_DIR=$5
 
 OUTPUT_FILE=${OUTPUT_DIR}/${IP1}-${IP2}.ucx.result
 
@@ -23,7 +24,7 @@ ssh ${IP2} \
 'pkill ucx_perftest;' \
 'export UCX_TLS=rc;' \
 'export UCX_NET_DEVICES=${DEV}:${V2_PORT};' \
-'ucx_perftest -b test_types_ucp;' \
+"ucx_perftest -b test_types_ucp -p ${PORT};" \
 'exit' > /dev/null 2>&1 &
 
 # client side
@@ -37,7 +38,7 @@ source env_load.sh ${IP1} ${TARGET_DIR}
 for i in {1..3}
 do
     sleep 5
-    ucx_perftest -b test_types_ucp ${IP2} 2>&1
+    ucx_perftest -p ${PORT} -b test_types_ucp ${IP2} 2>&1
     if [[ $? -eq 0 ]]; then
         exit 0
     fi
