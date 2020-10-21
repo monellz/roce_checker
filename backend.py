@@ -144,8 +144,6 @@ class Producer(multiprocessing.Process):
         for ip in self.nodes_ip:
             nodes_status[ip] = None
 
-        num_consumers = self.num_consumers
-
         # Establish communication queues
         tasks = multiprocessing.JoinableQueue()
         results = multiprocessing.Queue()
@@ -168,9 +166,11 @@ class Producer(multiprocessing.Process):
             w.start()
         
 
+        db = self.db
         def signal_handler(*args):
             for c in consumers:
                 os.kill(c.pid, signal.SIGTERM)
+            db.update_info(-1, now())
             sys.exit()
         signal.signal(signal.SIGTERM, signal_handler)
 
@@ -329,10 +329,10 @@ class Producer(multiprocessing.Process):
         for line in stdout.split('\n'):
             line = line.strip()
             words = line.split(",")
-            if words[0].startswith('ucp'):
-                words[1] = words[1].split()[-1]
-                data = [ip1, ip2] + words
-                self.db.update_ucx_test(data)
+            assert len(words) == 9
+            assert words[0].startswith('ucp')
+            data = [ip1, ip2] + words
+            self.db.update_ucx_test(data)
 
 
     def handle_perf_v2_test_result(self, result):
@@ -343,13 +343,13 @@ class Producer(multiprocessing.Process):
         for line in stdout.split('\n'):
             line = line.strip()
             words = line.split(",")
-            if words[0].startswith('ucp'):
-                words[1] = words[1].split()[-1]
-                data = [ip1, ip2] + words
-                self.db.update_ucx_test(data)
+            assert len(words) == 4
+            data = [ip1, ip2] + words
+            self.db.update_perf_test(data)
         
 
 def launch(nodes_ip, db_path):
+    '''
     nodes_ip    = [
         '172.16.201.4',
         "172.16.201.5",
@@ -362,5 +362,6 @@ def launch(nodes_ip, db_path):
         "172.16.201.14",
         # "172.16.201.100",
     ] 
+    '''
     producer = Producer(nodes_ip, 7, db_path)
     producer.start()
