@@ -48,8 +48,14 @@ def monitor_test(args):
 
 def view_test(args):
     db = DataBase(args.db)
-    s = db.format_info()
-    s += db.format_top()
+    delim = "=" * 10 + "\n"
+    s = delim
+    s += "UCX TEST Result\n"
+    s += db.format_ucx_test()
+    s += delim
+    s += "Perf TEST Result\n"
+    s += db.format_perf_test()
+    s += delim
     print(s)
 
 def roce_info(args):
