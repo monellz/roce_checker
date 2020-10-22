@@ -2,3 +2,4 @@
 __pycache__
 roce.db
 ip_list.txt
+exclude_ip_list.txt
