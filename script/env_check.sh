@@ -5,6 +5,10 @@ OUTPUT_DIR=$2
 
 OUTPUT_FILE=${OUTPUT_DIR}/${IP}.env_check.result
 
+if [ -f $OUTPUT_FILE ]; then
+    rm -rf $OUTPUT_FILE
+fi
+
 
 check_kernel_version() {
     local kernel_version=""
