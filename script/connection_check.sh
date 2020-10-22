@@ -46,7 +46,7 @@ check_network() {
 
 # TOOD: It's very strange that I cannot merge the two check into one remote command
 
-ssh -o StrictHostKeyChecking=no $IP1 > ${OUTPUT_FILE} 2>/dev/null << remotessh
+ssh -o StrictHostKeyChecking=no $IP1 > ${OUTPUT_FILE} 2>&1 << remotessh
     $(typeset -f check_network)
     check_network $IP1 $IP2
     exit $?
@@ -56,7 +56,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-ssh -o StrictHostKeyChecking=no $IP1 >> ${OUTPUT_FILE} 2>/dev/null << remotessh
+ssh -o StrictHostKeyChecking=no $IP1 >> ${OUTPUT_FILE} 2>&1 << remotessh
     $(typeset -f check_nopasswd_ssh)
     $(typeset -f check_network)
     check_nopasswd_ssh $IP1 $IP2

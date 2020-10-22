@@ -28,7 +28,7 @@ def remove_dir(path):
 
 
 class TaskKind(Enum):
-    NOPWCHECK   = 'no_passwork_check'
+    NOPWCHECK   = 'no_password_check'
     ENVCHECK    = 'env_check'
     SETUP       = 'setup'
     CONNCHECK   = 'connection_check'
@@ -94,7 +94,7 @@ class Consumer(multiprocessing.Process):
             
             out_path = os.path.join(self.res_path, task.kind.value)
             if task.kind == TaskKind.NOPWCHECK:
-                cmd = './script/nopassword_check.sh {}'.format(task.ip)
+                cmd = './script/nopassword_check.sh {} {}'.format(task.ip, out_path)
             elif task.kind == TaskKind.ENVCHECK:
                 cmd = './script/env_check.sh {} {}'.format(task.ip, out_path)
             elif task.kind == TaskKind.SETUP:
@@ -113,7 +113,7 @@ class Consumer(multiprocessing.Process):
                 cmd = './script/perf_v2_test.sh {} {} {} {} {}'.format(ip1, ip2, port, out_path, self.target_path)
                 print(cmd)
             elif task.kind == TaskKind.CLEAN:
-                cmd = './script/remote_clean.sh {} {}'.format(task.ip, self.target_path)
+                cmd = './script/remote_clean.sh {} {} {}'.format(task.ip, out_path, self.target_path)
             else:
                 raise NotImplementedError
 
@@ -319,7 +319,8 @@ class Producer(multiprocessing.Process):
         for ip in self.nodes_ip:
             tasks.put(Task(kind=TaskKind.CLEAN, ip=ip))
             ntasks += 2
-            self.db.update_top(ip, TaskKind.CLEAN, Result.WAIT, now())
+            # Do not show CLEAN phase (it will overwrite previous failure information)
+            #self.db.update_top(ip, TaskKind.CLEAN, Result.WAIT, now())
 
         while ntasks > 0:
             result = results.get()
@@ -327,15 +328,13 @@ class Producer(multiprocessing.Process):
 
             print('Result: {}'.format(result))
             if result.kind == TaskKind.CLEAN:
-                self.db.delete_top(result.ip)
+                #self.db.delete_top(result.ip)
                 if result.code == Result.FAILED:
-                    if type(result.ip) == str:
-                        nodes_status[result.ip] = Result.FAILED
-                        self.db.update_top(result.ip, result.kind, Result.FAILED, now())
-                    else:
-                        pass
-                elif result.code == Result.ACCEPT:
-                    self.db.update_top(result.ip, result.kind, Result.ACCEPT, now())
+                    assert type(result.ip) == str
+                    #self.db.update_top(result.ip, result.kind, Result.FAILED, now())
+                    print("{} CLEAN FAILED".format(result.ip))
+                #elif result.code == Result.ACCEPT:
+                    #self.db.update_top(result.ip, result.kind, Result.ACCEPT, now())
             else:
                 raise Exception("Clean must be after all tasks finished")
         

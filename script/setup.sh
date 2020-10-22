@@ -27,10 +27,9 @@ fi
 
 # create directory
 
-ssh $IP << remotessh
+ssh $IP >> ${OUTPUT_FILE} 2>&1 << remotessh
 
-# TODO: remove old directory?
-
+rm -rf ${TARGET_DIR} 2>/dev/null
 mkdir -p ${TARGET_DIR}
 
 remotessh
@@ -38,7 +37,7 @@ remotessh
 
 for f in ${FILES[@]}
 do
-    scp -p -o StrictHostKeyChecking=no $f root@$IP:${TARGET_DIR}/ >> ${OUTPUT_FILE} 2>/dev/null
+    scp -p -o StrictHostKeyChecking=no $f root@$IP:${TARGET_DIR}/ >> ${OUTPUT_FILE} 2>&1
     if [ $? -ne 0 ]; then
         echo "Scp for $f failed" >> ${OUTPUT_FILE} 
         echo "FAIL" >> ${OUTPUT_FILE}

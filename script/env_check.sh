@@ -74,7 +74,7 @@ check_ucx(){
 }
 
 
-ssh -o StrictHostKeyChecking=no $IP > ${OUTPUT_FILE} 2>/dev/null << remotessh
+ssh -o StrictHostKeyChecking=no $IP > ${OUTPUT_FILE} 2>&1 << remotessh
     $(typeset -f check_kernel_version)
     $(typeset -f check_roce_mpi_health)
     $(typeset -f check_cpu_number)
