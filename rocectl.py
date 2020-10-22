@@ -34,7 +34,7 @@ def start_test(args):
                 node_list = list(node_list)
 
         print(node_list)
-        backend.launch(node_list, args.db)
+        backend.launch(node_list, args.db, args.nc)
         
 def stop_test(args):
     # Get backend pid from DataBase
@@ -89,6 +89,7 @@ def parse_args():
     parser_start.add_argument("--ip_list", "-f", required=True, dest="ip_list", help="the path of ip list")
     parser_start.add_argument("--exclude_ip_list", "-e", dest="exclude_ip_list", help="the path of exclude ip list")
     parser_start.add_argument("--db", "-db", default="roce.db", dest="db", help="the path of database")
+    parser_start.add_argument("--nc", "-nc", default=7, type=int, dest="nc", help="the number of consumers")
     parser_start.set_defaults(func=start_test)
 
 

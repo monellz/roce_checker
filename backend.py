@@ -384,7 +384,7 @@ class Producer(multiprocessing.Process):
             self.db.update_perf_test(data)
         
 
-def launch(nodes_ip, db_path):
+def launch(nodes_ip, db_path, num_consumers):
     '''
     nodes_ip    = [
         '172.16.201.4',
@@ -399,5 +399,5 @@ def launch(nodes_ip, db_path):
         # "172.16.201.100",
     ] 
     '''
-    producer = Producer(nodes_ip, 7, db_path)
+    producer = Producer(nodes_ip, num_consumers, db_path)
     producer.start()
