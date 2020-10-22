@@ -44,7 +44,7 @@ ssh ${IP1} \
 "export inner_port=${PORT};" \
 "export inner_server_ip=${IP2};" \
 'ucx_perftest -c 0 -x rc_verbs -d ${UCX_NET_DEVICES} -b test_types_ucp -s 8192 -D bcopy -p ${inner_port} -f -v ${inner_server_ip};' \
-'exit $?' > ${OUTPUT_FILE} 2>/dev/null 
+'exit $?' > ${OUTPUT_FILE} 2>&1
 
 parse_ucx_result() {
     FILE=$1
@@ -56,6 +56,10 @@ parse_ucx_result() {
         # test_types_ucp,iterations,typical_lat,avg_lat,overall_lat,avg_bw,overall_bw,avg_mr,overall_mr
         data=$(grep ${case} < ${FILE} | awk '{print $2}')
         echo ${case},${data}
+        if [ -z "$data" ]; then
+            echo "Parse Error for ${case}" >> ${OUTPUT_FILE}
+            exit 10
+        fi
     done
 
 

@@ -246,6 +246,7 @@ class Producer(multiprocessing.Process):
 
                         tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip1, ip2], port=port))
                         ntasks += 2
+                        self.db.update_top([ip1, ip2], TaskKind.UCXTEST, Result.WAIT, now())
                         
                         # Occupied
                         UCX_test_nodes_info[ip1]['occupied'] = True
@@ -262,45 +263,47 @@ class Producer(multiprocessing.Process):
                     ip2 = result.ip[1]
                     self.handle_ucx_test_result(result)
                     
-                    UCX_test_nodes_info[ip1]['occupied'] = False
-                    UCX_test_nodes_info[ip2]['occupied'] = False
-
-                    # if do not have other ucx task (dependent edge), do the perf_v2_test
-                    # if len(UCX_test_nodes_info[ip1]['dep_list']) == 0 and \
-                    #     len(UCX_test_nodes_info[ip2]['dep_list']) == 0:
+                    # Just go ahead and do next two-IPs test
+                    assert UCX_test_nodes_info[ip1]['occupied'] == True
+                    assert UCX_test_nodes_info[ip2]['occupied'] == True
 
                     # Do perf_v2_test
                     idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
                     port = port_list[idx]
                     tasks.put(Task(kind=TaskKind.PERFV2TEST, ip=[ip1, ip2], port=port))
                     ntasks += 2
+                    self.db.update_top([ip1, ip2], TaskKind.PERFV2TEST, Result.WAIT, now())
 
                     # Maybe have to enqueue more task
                 elif result.kind == TaskKind.PERFV2TEST:
                     self.db.delete_top(result.ip)
                     self.handle_perf_v2_test_result(result)
 
+                    UCX_test_nodes_info[ip1]['occupied'] = False
+                    UCX_test_nodes_info[ip2]['occupied'] = False
+
                     # Find dependence, and Enqueue new UCX task
                     for ipx in result.ip:
-                        if len(UCX_test_nodes_info[ipx]['dep_list']) > 0:
-                            for ipy in UCX_test_nodes_info[ipx]['dep_list']:
-                                if UCX_test_nodes_info[ipy]['occupied'] is False:
-                                    ip1, ip2 = (ipx, ipy) if ipx < ipy else (ipy, ipx)
-                                    idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
-                                    port = port_list[idx]
+                        if UCX_test_nodes_info[ipx]['occupied'] is True: continue
+                        for ipy in UCX_test_nodes_info[ipx]['dep_list']:
+                            if UCX_test_nodes_info[ipy]['occupied'] is False:
+                                ip1, ip2 = (ipx, ipy) if ipx < ipy else (ipy, ipx)
+                                idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
+                                port = port_list[idx]
 
-                                    tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip1, ip2], port=port))
-                                    ntasks += 2
-                                    
-                                    # Occupied
-                                    UCX_test_nodes_info[ip1]['occupied'] = True
-                                    UCX_test_nodes_info[ip2]['occupied'] = True
+                                tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip1, ip2], port=port))
+                                ntasks += 2
+                                self.db.update_top([ip1, ip2], TaskKind.UCXTEST, Result.WAIT, now())
+                                
+                                # Occupied
+                                UCX_test_nodes_info[ip1]['occupied'] = True
+                                UCX_test_nodes_info[ip2]['occupied'] = True
 
-                                    # Remove from List
-                                    UCX_test_nodes_info[ip1]['dep_list'].remove(ip2)
-                                    UCX_test_nodes_info[ip2]['dep_list'].remove(ip1)
+                                # Remove from List
+                                UCX_test_nodes_info[ip1]['dep_list'].remove(ip2)
+                                UCX_test_nodes_info[ip2]['dep_list'].remove(ip1)
 
-                                    break
+                                break
 
 
             elif result.code == Result.FAILED:
@@ -308,7 +311,11 @@ class Producer(multiprocessing.Process):
                     nodes_status[result.ip] = Result.FAILED
                     self.db.update_top(result.ip, result.kind, Result.FAILED, now())
                 else:
-                    pass
+                    assert type(result.ip) == list
+                    assert len(result.ip) == 2
+                    nodes_status[result.ip[0]] = Result.FAILED
+                    nodes_status[result.ip[1]] = Result.FAILED
+                    self.db.update_top(result.ip, result.kind, Result.FAILED, now())
 
             elif result.code == Result.ACCEPT:
                 # Update database
@@ -330,7 +337,7 @@ class Producer(multiprocessing.Process):
             if result.kind == TaskKind.CLEAN:
                 #self.db.delete_top(result.ip)
                 if result.code == Result.FAILED:
-                    assert type(result.ip) == str
+                    assert type(result.ip) == str, "CLEAN IP: {}".format(result.ip)
                     #self.db.update_top(result.ip, result.kind, Result.FAILED, now())
                     print("{} CLEAN FAILED".format(result.ip))
                 #elif result.code == Result.ACCEPT:
@@ -355,7 +362,7 @@ class Producer(multiprocessing.Process):
         for line in stdout.split('\n'):
             line = line.strip()
             words = line.split(",")
-            assert len(words) == 9
+            assert len(words) == 9, "ucx IP1: {}, IP2: {}, words: {}".format(ip1, ip2, words)
             assert words[0].startswith('ucp')
             data = [ip1, ip2] + words
             self.db.update_ucx_test(data)
@@ -369,7 +376,7 @@ class Producer(multiprocessing.Process):
         for line in stdout.split('\n'):
             line = line.strip()
             words = line.split(",")
-            assert len(words) == 4
+            assert len(words) == 4, "perf IP1: {}, IP2: {}, words: {}".format(ip1, ip2, words)
             data = [ip1, ip2] + words
             self.db.update_perf_test(data)
         
