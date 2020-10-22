@@ -46,6 +46,11 @@ do
         "inner_port=${PORT};" \
         '$inner_case -p $inner_port -x $V2_INDEX -d $DEV -c $inner_type --report_gbits;' \
         'exit $?' > /dev/null 2>&1 &
+
+
+        server_ip=$!
+        trap "echo trap handling for term... >> ${OUTPUT_FILE};kill ${server_ip};exit" SIGTERM
+
         
         # client side
         for i in {1..3}

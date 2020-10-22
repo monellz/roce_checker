@@ -7,7 +7,11 @@ import backend
 from database import DataBase
 
 def start_test(args):
-    # Open IP list file
+    # Clean previous infomation
+    db = DataBase(args.db)
+    db.clear()
+    db.close()
+
     pid = os.fork()
     if pid != 0:
         return

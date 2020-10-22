@@ -24,28 +24,27 @@ ssh ${IP2} \
 'pkill ucx_perftest;' \
 'export UCX_TLS=rc;' \
 'export UCX_NET_DEVICES=${DEV}:${V2_PORT};' \
-"ucx_perftest -b test_types_ucp -p ${PORT};" \
+"export inner_port=${PORT};" \
+'ucx_perftest -c 0 -x rc_verbs -d ${UCX_NET_DEVICES} -b test_types_ucp -s 8192 -D bcopy -p ${inner_port};' \
 'exit $?' > /dev/null 2>&1 &
+
+server_ip=$!
+
+trap "echo trap handling for term... >> ${OUTPUT_FILE};kill ${server_ip};exit" SIGTERM
 
 # client side
 
-ssh ${IP1} > ${OUTPUT_FILE} 2>/dev/null << remotessh
-
-cd ${TARGET_DIR}
-source env_load.sh ${IP1} ${TARGET_DIR}
-
-# try 3 times for connection
-for i in {1..3}
-do
-    sleep 5
-    ucx_perftest -p ${PORT} -b test_types_ucp ${IP2} -f -v 2>&1
-    if [[ $? -eq 0 ]]; then
-        exit 0
-    fi
-done
-
-exit 1
-remotessh
+ssh ${IP1} \
+'sleep 5;' \
+"cd ${TARGET_DIR};" \
+"source env_load.sh ${IP1} ${TARGET_DIR};" \
+'pkill ucx_perftest;' \
+'export UCX_TLS=rc;' \
+'export UCX_NET_DEVICES=${DEV}:${V2_PORT};' \
+"export inner_port=${PORT};" \
+"export inner_server_ip=${IP2};" \
+'ucx_perftest -c 0 -x rc_verbs -d ${UCX_NET_DEVICES} -b test_types_ucp -s 8192 -D bcopy -p ${inner_port} -f -v ${inner_server_ip};' \
+'exit $?' > ${OUTPUT_FILE} 2>/dev/null 
 
 parse_ucx_result() {
     FILE=$1
