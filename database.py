@@ -199,6 +199,17 @@ class DataBase:
             s += format_str % (row[0], row[1], row[2], row[3], row[5], row[7], row[9])
         return s
 
+    def csv_ucx_test(self):
+        self.cursor.execute("SELECT * FROM ucx_test")
+        vals = self.cursor.fetchall()
+        # only show avg data
+        format_str = '{},{},{},{},{},{},{}\n'
+        s = format_str.format("IP1", "IP2", "type", "iter", "avg_lat(usec)", "avg_bw(MB/s)", "avg_mr(msg/s)")
+        for row in vals:
+            s += format_str.format(row[0], row[1], row[2], row[3], row[5], row[7], row[9])
+        return s
+
+
     def update_perf_test(self, data):
         assert isinstance(data, list)
         assert len(data) == 6
@@ -226,6 +237,16 @@ class DataBase:
             else:
                 raise Exception("Unkown perf test type {}".format(row[2]))
         return s
+
+    def csv_perf_test(self):
+        self.cursor.execute("SELECT * FROM perf_test")
+        vals = self.cursor.fetchall()
+        format_str = '{},{},{},{},{},{},{}\n'
+        s = format_str.format("IP1", "IP2", "type", "transfer_type", "version", "bw(Gb/s)", "lat(usec)")
+        for row in vals:
+            s += format_str.format(*row)
+        return s
+
         
 
 

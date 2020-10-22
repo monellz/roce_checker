@@ -65,15 +65,22 @@ def monitor_test(args):
 
 def view_test(args):
     db = DataBase(args.db)
-    delim = "=" * 20 + "\n"
-    s = delim
-    s += "UCX TEST Result\n"
-    s += db.format_ucx_test()
-    s += delim
-    s += "Perf TEST Result\n"
-    s += db.format_perf_test()
-    s += delim
-    print(s)
+    if args.csv:
+        delim = '\n\n'
+        s = db.csv_ucx_test()
+        s += delim
+        s += db.csv_perf_test()
+        print(s)
+    else:
+        delim = "=" * 20 + "\n"
+        s = delim
+        s += "UCX TEST Result\n"
+        s += db.format_ucx_test()
+        s += delim
+        s += "Perf TEST Result\n"
+        s += db.format_perf_test()
+        s += delim
+        print(s)
 
 def roce_info(args):
     print('please run "rocectl {positional argument} --help" to see guidance')
@@ -110,6 +117,7 @@ def parse_args():
     # view
     parser_view = subparsers.add_parser("view", help="display data")
     parser_view.add_argument("--db", "-db", default="roce.db", dest="db", help="the path of database")
+    parser_view.add_argument("--csv", "-csv", action="store_true", dest="csv", help="csv-format output")
     parser_view.set_defaults(func=view_test)
 
 
