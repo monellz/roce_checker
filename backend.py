@@ -367,7 +367,6 @@ class Producer(multiprocessing.Process):
             line = line.strip()
             words = line.split(",")
             assert len(words) == 9, "ucx IP1: {}, IP2: {}, words: {}".format(ip1, ip2, words)
-            assert words[0].startswith('ucp')
             data = [ip1, ip2] + words
             self.db.update_ucx_test(data)
 

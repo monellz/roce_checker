@@ -193,7 +193,8 @@ class DataBase:
         vals = self.cursor.fetchall()
         # only show avg data
         format_str = '%16s | %16s | %28s | %7d | %15f | %15f | %15f\n'
-        s = '%16s | %16s | %28s | %7s | %15s | %15s | %15s\n' % ("IP1", "IP2", "type", "iter", "avg_lat(usec)", "avg_bw(MB/s)", "avg_mr(msg/s)")
+        s = "Result Num: {}\n".format(len(vals))
+        s += '%16s | %16s | %28s | %7s | %15s | %15s | %15s\n' % ("IP1", "IP2", "type", "iter", "avg_lat(usec)", "avg_bw(MB/s)", "avg_mr(msg/s)")
         for row in vals:
             s += format_str % (row[0], row[1], row[2], row[3], row[5], row[7], row[9])
         return s
@@ -215,7 +216,8 @@ class DataBase:
         vals = self.cursor.fetchall()
         format_lat_str = '%16s | %16s | %15s | %15s | %7s | %10s | %10f\n'
         format_bw_str = '%16s | %16s | %15s | %15s | %7s | %10f | %10s\n'
-        s = '%16s | %16s | %15s | %15s | %7s | %10s | %10s\n' % ("IP1", "IP2", "type", "transfer_type", "version", "bw(Gb/s)", "lat(usec)")
+        s = "Result Num: {}\n".format(len(vals))
+        s += '%16s | %16s | %15s | %15s | %7s | %10s | %10s\n' % ("IP1", "IP2", "type", "transfer_type", "version", "bw(Gb/s)", "lat(usec)")
         for row in vals:
             if 'lat' in row[2]:
                 s += format_lat_str % (tuple(row))

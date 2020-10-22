@@ -49,7 +49,8 @@ ssh ${IP1} \
 parse_ucx_result() {
     FILE=$1
 
-    perfsuit=(ucp_iov_contig_tag_lat ucp_iov_iov_tag_lat ucp_contig_contig_tag_lat ucp_iov_contig_tag_bw ucp_iov_iov_tag_bw ucp_contig_contig_tag_bw ucp_sync_tag_lat ucp_unexp_tag_lat ucp_wild_tag_lat ucp_stream_bw ucp_stream_lat ucp_put_lat ucp_put_bw ucp_get)
+    #perfsuit=(ucp_iov_contig_tag_lat ucp_iov_iov_tag_lat ucp_contig_contig_tag_lat ucp_iov_contig_tag_bw ucp_iov_iov_tag_bw ucp_contig_contig_tag_bw ucp_sync_tag_lat ucp_unexp_tag_lat ucp_wild_tag_lat ucp_stream_bw ucp_stream_lat ucp_put_lat ucp_put_bw ucp_get)
+    perfsuit=(put_bw)
 
     for case in ${perfsuit[@]}
     do
