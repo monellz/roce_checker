@@ -226,7 +226,7 @@ class Producer(multiprocessing.Process):
                 elif result.kind == TaskKind.SETUP:
                     self.db.delete_top(result.ip)
                     for ip in conn_check_waiting_list:
-                        ip1, ip2 = (result.ip, ip) if result.ip < ip else (ip, result.ip)
+                        ip1, ip2 = (result.ip, ip) if self.cmp_ips(result.ip, ip)==-1 else (ip, result.ip)
                         tasks.put(Task(kind=TaskKind.CONNCHECK, ip=[ip1, ip2]))
                         ntasks += 2
                         self.db.update_top([ip1, ip2], TaskKind.CONNCHECK, Result.WAIT, now())
@@ -267,43 +267,65 @@ class Producer(multiprocessing.Process):
                     assert UCX_test_nodes_info[ip1]['occupied'] == True
                     assert UCX_test_nodes_info[ip2]['occupied'] == True
 
-                    # Do perf_v2_test
-                    idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
-                    port = port_list[idx]
-                    tasks.put(Task(kind=TaskKind.PERFV2TEST, ip=[ip1, ip2], port=port))
-                    ntasks += 2
-                    self.db.update_top([ip1, ip2], TaskKind.PERFV2TEST, Result.WAIT, now())
+                    # if ip1 is smaller than the ip2, then change the test direction and do ucx test again
+                    if self.cmp_ips(ip1, ip2) == -1:
+                        ip1, ip2 = ip2, ip1
+                        idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
+                        port = port_list[idx]
+                        tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip1, ip2], port=port))
+                        ntasks += 2
+                        self.db.update_top([ip1, ip2], TaskKind.UCXTEST, Result.WAIT, now())
+                    
+                    # if ip1 is bigger than the ip2, then do perf_v2 test
+                    elif self.cmp_ips(ip1, ip2) == 1:
+                        # Do perf_v2_test
+                        ip1, ip2 = ip2, ip1
+                        idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
+                        port = port_list[idx]
+                        tasks.put(Task(kind=TaskKind.PERFV2TEST, ip=[ip1, ip2], port=port))
+                        ntasks += 2
+                        self.db.update_top([ip1, ip2], TaskKind.PERFV2TEST, Result.WAIT, now())
 
                     # Maybe have to enqueue more task
                 elif result.kind == TaskKind.PERFV2TEST:
                     self.db.delete_top(result.ip)
                     self.handle_perf_v2_test_result(result)
 
-                    UCX_test_nodes_info[result.ip[0]]['occupied'] = False
-                    UCX_test_nodes_info[result.ip[1]]['occupied'] = False
+                    # if ip1 is smaller than the ip2, then change the test direction and do perf_v2 test again
+                    if self.cmp_ips(ip1, ip2) == -1:
+                        ip1, ip2 = ip2, ip1
+                        idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
+                        port = port_list[idx]
+                        tasks.put(Task(kind=TaskKind.PERFV2TEST, ip=[ip1, ip2], port=port))
+                        ntasks += 2
+                        self.db.update_top([ip1, ip2], TaskKind.PERFV2TEST, Result.WAIT, now())
 
-                    # Find dependence, and Enqueue new UCX task
-                    for ipx in result.ip:
-                        if UCX_test_nodes_info[ipx]['occupied'] is True: continue
-                        for ipy in UCX_test_nodes_info[ipx]['dep_list']:
-                            if UCX_test_nodes_info[ipy]['occupied'] is False:
-                                ip1, ip2 = (ipx, ipy) if ipx < ipy else (ipy, ipx)
-                                idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
-                                port = port_list[idx]
+                    else:
+                        UCX_test_nodes_info[result.ip[0]]['occupied'] = False
+                        UCX_test_nodes_info[result.ip[1]]['occupied'] = False
 
-                                tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip1, ip2], port=port))
-                                ntasks += 2
-                                self.db.update_top([ip1, ip2], TaskKind.UCXTEST, Result.WAIT, now())
-                                
-                                # Occupied
-                                UCX_test_nodes_info[ip1]['occupied'] = True
-                                UCX_test_nodes_info[ip2]['occupied'] = True
+                        # Find dependence, and Enqueue new UCX task
+                        for ipx in result.ip:
+                            if UCX_test_nodes_info[ipx]['occupied'] is True: continue
+                            for ipy in UCX_test_nodes_info[ipx]['dep_list']:
+                                if UCX_test_nodes_info[ipy]['occupied'] is False:
+                                    ip1, ip2 = (ipx, ipy) if self.cmp_ips(ipx, ipy)==-1 else (ipy, ipx)
+                                    idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
+                                    port = port_list[idx]
 
-                                # Remove from List
-                                UCX_test_nodes_info[ip1]['dep_list'].remove(ip2)
-                                UCX_test_nodes_info[ip2]['dep_list'].remove(ip1)
+                                    tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip1, ip2], port=port))
+                                    ntasks += 2
+                                    self.db.update_top([ip1, ip2], TaskKind.UCXTEST, Result.WAIT, now())
+                                    
+                                    # Occupied
+                                    UCX_test_nodes_info[ip1]['occupied'] = True
+                                    UCX_test_nodes_info[ip2]['occupied'] = True
 
-                                break
+                                    # Remove from List
+                                    UCX_test_nodes_info[ip1]['dep_list'].remove(ip2)
+                                    UCX_test_nodes_info[ip2]['dep_list'].remove(ip1)
+
+                                    break
 
 
             elif result.code == Result.FAILED:
@@ -382,6 +404,18 @@ class Producer(multiprocessing.Process):
             assert len(words) == 4, "perf IP1: {}, IP2: {}, words: {}".format(ip1, ip2, words)
             data = [ip1, ip2] + words
             self.db.update_perf_test(data)
+    
+    def cmp_ips(self, ip1, ip2):
+        ip1_vals = ip1.split(".")
+        ip2_vals = ip2.split(".")
+
+        for v1, v2 in zip(ip1_vals, ip2_vals):
+            v1, v2 = int(v1), int(v2)
+            if v1 > v2:
+                return 1
+            elif v1 < v2:
+                return -1
+        return 0
         
 
 def launch(nodes_ip, db_path, num_consumers):
