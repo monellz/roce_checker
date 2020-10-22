@@ -55,7 +55,7 @@ do
         # client side
         for i in {1..3}
         do
-            sleep 5
+            sleep 3
             ssh ${IP1} \
             "cd ${TARGET_DIR};" \
             "source env_load.sh ${IP1} ${TARGET_DIR};" \

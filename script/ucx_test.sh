@@ -35,7 +35,7 @@ trap "echo trap handling for term... >> ${OUTPUT_FILE};kill ${server_ip};exit" S
 # client side
 
 ssh ${IP1} \
-'sleep 5;' \
+'sleep 3;' \
 "cd ${TARGET_DIR};" \
 "source env_load.sh ${IP1} ${TARGET_DIR};" \
 'pkill ucx_perftest;' \
