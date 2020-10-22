@@ -2,6 +2,7 @@ import argparse
 import os
 import signal
 import time
+import subprocess
 
 import backend
 from database import DataBase
@@ -21,9 +22,18 @@ def start_test(args):
         node_list = node_list.split("\n")
 
         # TODO: check IP pattern
-        node_list = [ ip.strip() for ip in node_list ]
-        print(node_list)
+        
+        if args.exclude_ip_list is not None:
+            with open(args.exclude_ip_list, "r") as ef:
+                node_list = set([ ip.strip() for ip in node_list ])
+                exclude_list = ef.read()
+                exclude_list = exclude_list.strip()
+                exclude_list = exclude_list.split('\n')
+                exclude_list = set([ ip.strip() for ip in exclude_list ])
+                node_list = node_list.difference(exclude_list)
+                node_list = list(node_list)
 
+        print(node_list)
         backend.launch(node_list, args.db)
         
 def stop_test(args):
@@ -31,10 +41,14 @@ def stop_test(args):
     # Then terminate it
     db = DataBase(args.db)
     pid = db.get_pid()
-    if pid < 0:
-        print("No test is running")
+    if args.force:
+        if pid > 0: os.kill(pid, signal.SIGTERM)
+        subprocess.call(['./script/manual_kill.sh'], shell=False)
     else:
-        os.kill(pid, signal.SIGTERM)
+        if pid < 0:
+            print("No test is running")
+        else:
+            os.kill(pid, signal.SIGTERM)
 
 
 def monitor_test(args):
@@ -73,6 +87,7 @@ def parse_args():
     # start
     parser_start = subparsers.add_parser("start", help="start a new test");
     parser_start.add_argument("--ip_list", "-f", required=True, dest="ip_list", help="the path of ip list")
+    parser_start.add_argument("--exclude_ip_list", "-e", dest="exclude_ip_list", help="the path of exclude ip list")
     parser_start.add_argument("--db", "-db", default="roce.db", dest="db", help="the path of database")
     parser_start.set_defaults(func=start_test)
 
@@ -81,6 +96,7 @@ def parse_args():
     # TODO: how to stop?
     parser_stop = subparsers.add_parser("stop", help="stop a test")
     parser_stop.add_argument("--db", "-db", default="roce.db", dest="db", help="the path of database")
+    parser_stop.add_argument("--force", "-f", action="store_true", dest="force", help="kill all related processes")
     parser_stop.set_defaults(func=stop_test)
 
 

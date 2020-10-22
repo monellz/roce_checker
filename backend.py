@@ -279,8 +279,8 @@ class Producer(multiprocessing.Process):
                     self.db.delete_top(result.ip)
                     self.handle_perf_v2_test_result(result)
 
-                    UCX_test_nodes_info[ip1]['occupied'] = False
-                    UCX_test_nodes_info[ip2]['occupied'] = False
+                    UCX_test_nodes_info[result.ip[0]]['occupied'] = False
+                    UCX_test_nodes_info[result.ip[1]]['occupied'] = False
 
                     # Find dependence, and Enqueue new UCX task
                     for ipx in result.ip:
@@ -316,6 +316,10 @@ class Producer(multiprocessing.Process):
                     nodes_status[result.ip[0]] = Result.FAILED
                     nodes_status[result.ip[1]] = Result.FAILED
                     self.db.update_top(result.ip, result.kind, Result.FAILED, now())
+
+                    # release
+                    UCX_test_nodes_info[result.ip[0]]['ocupied'] = False
+                    UCX_test_nodes_info[result.ip[1]]['ocupied'] = False
 
             elif result.code == Result.ACCEPT:
                 # Update database
