@@ -46,19 +46,44 @@ check_network() {
 
 # TOOD: It's very strange that I cannot merge the two check into one remote command
 
+# Try 3 times
+for i in {1..3}
+do
+
 ssh -o StrictHostKeyChecking=no $IP1 > ${OUTPUT_FILE} 2>&1 << remotessh
     $(typeset -f check_network)
     check_network $IP1 $IP2
     exit $?
 remotessh
 
-if [ $? -ne 0 ]; then
-    exit 1
+if [ $? -eq 0 ]; then
+    break
+else
+    sleep 1
 fi
+
+done
+
+# Try 3 times
+for i in {1..3}
+do
+
+echo "Start nopasswd check ${i}"
 
 ssh -o StrictHostKeyChecking=no $IP1 >> ${OUTPUT_FILE} 2>&1 << remotessh
     $(typeset -f check_nopasswd_ssh)
-    $(typeset -f check_network)
     check_nopasswd_ssh $IP1 $IP2
     exit $?
 remotessh
+
+if [ $? -eq 0 ]; then
+    echo "safe exit" >> ${OUTPUT_FILE}
+    exit 0
+else
+    sleep 1
+fi
+done
+
+echo "nopsswd check Err" >> ${OUTPUT_FILE}
+
+exit 1
