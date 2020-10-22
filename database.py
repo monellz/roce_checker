@@ -109,7 +109,8 @@ class DataBase:
         self.conn.close()
 
     def clear(self):
-        # We should not delete data from info
+        # We should only UPDATE data from info
+        self.update_info(-1, start="*", end="*")
         self.cursor.execute("DELETE FROM top")
         self.cursor.execute("DELETE FROM ucx_test")
         self.cursor.execute("DELETE FROM perf_test")
