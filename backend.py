@@ -296,36 +296,45 @@ class Producer(multiprocessing.Process):
                     assert nodes_info[ip1].occupied == True
                     assert nodes_info[ip2].occupied == True
 
-                    # Do perf_v2_test
-                    self.do_perf_v2_test(tasks, ip1, ip2, port_list)
-                    ntasks += 2
+                    if IPAddress(ip1) < IPAddress(ip2):
+                        self.do_ucx_test(tasks, ip2, ip1, port_list)
+                        ntasks += 2
+                    else:
+                        # Do perf_v2_test
+                        self.do_perf_v2_test(tasks, ip2, ip1, port_list)
+                        ntasks += 2
 
                     # Maybe have to enqueue more task
                 elif result.kind == TaskKind.PERFV2TEST:
                     self.db.delete_top(result.ip)
                     self.handle_perf_v2_test_result(result)
 
-                    nodes_info[result.ip[0]].occupied = False
-                    nodes_info[result.ip[1]].occupied = False
+                    if IPAddress(result.ip[0]) < IPAddress(result.ip[1]):
+                        self.do_perf_v2_test(tasks, result.ip[1], result.ip[0], port_list)
+                        ntasks += 2
 
-                    # Find dependence, and Enqueue new UCX task
-                    for ipx in result.ip:
-                        if nodes_info[ipx].occupied is True: continue
-                        for ipy in nodes_info[ipx].dep_list :
-                            if nodes_info[ipy].occupied is False:
-                                ip1, ip2 = (ipx, ipy) if IPAddress(ipx) < IPAddress(ipy) else (ipy, ipx)
-                                self.do_perf_v2_test(tasks, ip1, ip2, port_list)
-                                ntasks += 2
-                                
-                                # Occupied
-                                nodes_info[ip1].occupied = True
-                                nodes_info[ip2].occupied = True
+                    else:
+                        nodes_info[result.ip[0]].occupied = False
+                        nodes_info[result.ip[1]].occupied = False
 
-                                # Remove from List
-                                nodes_info[ip1].dep_list.remove(ip2)
-                                nodes_info[ip2].dep_list.remove(ip1)
+                        # Find dependence, and Enqueue new UCX task
+                        for ipx in result.ip:
+                            if nodes_info[ipx].occupied is True: continue
+                            for ipy in nodes_info[ipx].dep_list :
+                                if nodes_info[ipy].occupied is False:
+                                    ip1, ip2 = (ipx, ipy) if IPAddress(ipx) < IPAddress(ipy) else (ipy, ipx)
+                                    self.do_ucx_test(tasks, ip1, ip2, port_list)
+                                    ntasks += 2
+                                    
+                                    # Occupied
+                                    nodes_info[ip1].occupied = True
+                                    nodes_info[ip2].occupied = True
 
-                                break
+                                    # Remove from List
+                                    nodes_info[ip1].dep_list.remove(ip2)
+                                    nodes_info[ip2].dep_list.remove(ip1)
+
+                                    break
 
 
             elif result.code == Result.FAILED:
