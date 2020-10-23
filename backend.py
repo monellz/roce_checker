@@ -264,15 +264,14 @@ class Producer(multiprocessing.Process):
                     ip1 = result.ip[0]
                     ip2 = result.ip[1]
 
+                    if self.same_router(ip1, ip2):
+                        continue
+
                     if nodes_info[ip1].occupied is False and \
                         nodes_info[ip2].occupied is False:
                         # both ip is available
-                        idx = (self.nodes_ip.index(ip1) + self.nodes_ip.index(ip2)) % len(self.nodes_ip)
-                        port = port_list[idx]
-
-                        tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip1, ip2], port=port))
+                        self.do_ucx_test(tasks, ip1, ip2, port_list)
                         ntasks += 2
-                        self.db.update_top([ip1, ip2], TaskKind.UCXTEST, Result.WAIT, now())
                         
                         # Occupied
                         nodes_info[ip1].occupied = True
@@ -294,11 +293,8 @@ class Producer(multiprocessing.Process):
                     assert nodes_info[ip2].occupied == True
 
                     # Do perf_v2_test
-                    idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
-                    port = port_list[idx]
-                    tasks.put(Task(kind=TaskKind.PERFV2TEST, ip=[ip1, ip2], port=port))
+                    self.do_perf_v2_test(tasks, ip1, ip2, port_list)
                     ntasks += 2
-                    self.db.update_top([ip1, ip2], TaskKind.PERFV2TEST, Result.WAIT, now())
 
                     # Maybe have to enqueue more task
                 elif result.kind == TaskKind.PERFV2TEST:
@@ -314,12 +310,8 @@ class Producer(multiprocessing.Process):
                         for ipy in nodes_info[ipx].dep_list :
                             if nodes_info[ipy].occupied is False:
                                 ip1, ip2 = (ipx, ipy) if IPAddress(ipx) < IPAddress(ipy) else (ipy, ipx)
-                                idx = sum([self.nodes_ip.index(ip) for ip in [ip1, ip2]]) % len(self.nodes_ip)
-                                port = port_list[idx]
-
-                                tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip1, ip2], port=port))
+                                self.do_perf_v2_test(tasks, ip1, ip2, port_list)
                                 ntasks += 2
-                                self.db.update_top([ip1, ip2], TaskKind.UCXTEST, Result.WAIT, now())
                                 
                                 # Occupied
                                 nodes_info[ip1].occupied = True
@@ -384,6 +376,34 @@ class Producer(multiprocessing.Process):
 
         self.db.update_info(-1, end=now())
 
+    def do_ucx_test(self, tasks, ip_to, ip_from, port_list):
+        '''
+        args:
+            tasks     : multiprocessing.JoinableQueue, the task queue to consumers
+            ip_to     : str, the ip address of test node
+            ip_from   : str, the ip address of test node
+            port_list : list(int), the port list genreate by Producer
+        '''
+        idx = sum([self.nodes_ip.index(ip) for ip in [ip_to, ip_from]]) % len(self.nodes_ip)
+        port = port_list[idx]
+        tasks.put(Task(kind=TaskKind.UCXTEST, ip=[ip_to, ip_from], port=port))
+        self.db.update_top([ip_to, ip_from], TaskKind.UCXTEST, Result.WAIT, now())
+
+
+    def do_perf_v2_test(self, tasks, ip_to, ip_from, port_list):
+        '''
+        args:
+            tasks     : multiprocessing.JoinableQueue, the task queue to consumers
+            ip_to     : str, the ip address of test node
+            ip_from   : str, the ip address of test node
+            port_list : list(int), the port list genreate by Producer
+        '''
+        idx = sum([self.nodes_ip.index(ip) for ip in [ip_to, ip_from]]) % len(self.nodes_ip)
+        port = port_list[idx]
+        tasks.put(Task(kind=TaskKind.PERFV2TEST, ip=[ip_to, ip_from], port=port))
+        self.db.update_top([ip_to, ip_from], TaskKind.PERFV2TEST, Result.WAIT, now())
+
+
     def handle_ucx_test_result(self, result):
         ip1 = result.ip[0]
         ip2 = result.ip[1]
@@ -408,6 +428,11 @@ class Producer(multiprocessing.Process):
             assert len(words) == 4, "perf IP1: {}, IP2: {}, words: {}".format(ip1, ip2, words)
             data = [ip1, ip2] + words
             self.db.update_perf_test(data)
+    
+    def same_router(self, ip1, ip2):
+        ip1_vals = ip1.split(".")
+        ip2_vals = ip2.split(".")
+        return ip1_vals[2] == ip2_vals[2]
         
 
 def launch(nodes_ip, db_path, num_consumers):
