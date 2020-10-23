@@ -76,7 +76,9 @@ class IPAddress():
         ip2_vals = ip2_obj.ip.split(".")
         for v1, v2 in zip(ip1_vals, ip2_vals):
             v1, v2 = int(v1), int(v2)
-            if v1 < v2: return True
+            if v1 == v2: continue
+            else:
+                return v1 < v2
         return False
     
     def __gt__(self, ip2_obj):
@@ -84,7 +86,9 @@ class IPAddress():
         ip2_vals = ip2_obj.ip.split(".")
         for v1, v2 in zip(ip1_vals, ip2_vals):
             v1, v2 = int(v1), int(v2)
-            if v1 > v2: return True
+            if v1 == v2: continue
+            else:
+                return v1 > v2
         return False
 
 
