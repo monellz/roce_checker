@@ -15,8 +15,8 @@ if [ -f ${OUTPUT_FILE} ]; then
     rm -rf ${OUTPUT_FILE}
 fi
 
-perfsuit=(ib_write_bw ib_write_lat)
-transtype=(RC)
+perfsuit=(ib_send_bw ib_send_lat)
+transtype=(UD)
 
 for case in ${perfsuit[@]}
 do
