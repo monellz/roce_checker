@@ -163,14 +163,26 @@ class Consumer(multiprocessing.Process):
 
 class Producer(multiprocessing.Process):
 
-    def __init__(self, nodes_ip, num_consumers, db_path, result_path="./.roce_result", target_path="/root/.roce"):
+    def __init__(self, nodes_ip, cluster_list, num_consumers, db_path, result_path="./.roce_result", target_path="/root/.roce"):
         multiprocessing.Process.__init__(self)
         self.nodes_ip = nodes_ip
+        self.cluster_list = cluster_list
         self.result_path = result_path
         self.target_path = target_path
         self.num_consumers = num_consumers
 
         self.db = DataBase(db_path)
+
+    def same_cluster(self, ip1, ip2):
+        # do not test for ip in the same cluster
+
+        # TODO: more efficient way!
+
+        if self.cluster_list == None: return False
+        for cluster in cluster_list:
+            if ip1 in cluster and ip2 in cluster:
+                return True
+        return False
     
     def run(self):
         # Store pid, date into DataBase
@@ -267,7 +279,7 @@ class Producer(multiprocessing.Process):
                     ip1 = result.ip[0]
                     ip2 = result.ip[1]
 
-                    if self.same_router(ip1, ip2):
+                    if self.same_cluster(ip1, ip2):
                         continue
 
                     if nodes_info[ip1].occupied is False and \
@@ -432,13 +444,8 @@ class Producer(multiprocessing.Process):
             data = [ip1, ip2] + words
             self.db.update_perf_test(data)
     
-    def same_router(self, ip1, ip2):
-        ip1_vals = ip1.split(".")
-        ip2_vals = ip2.split(".")
-        return ip1_vals[2] == ip2_vals[2]
-        
 
-def launch(nodes_ip, db_path, num_consumers):
+def launch(nodes_ip, cluster_list, db_path, num_consumers):
     '''
     nodes_ip    = [
         '172.16.201.4',
@@ -453,5 +460,5 @@ def launch(nodes_ip, db_path, num_consumers):
         # "172.16.201.100",
     ] 
     '''
-    producer = Producer(nodes_ip, num_consumers, db_path)
+    producer = Producer(nodes_ip, cluster_list, num_consumers, db_path)
     producer.start()

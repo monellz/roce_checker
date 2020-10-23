@@ -17,9 +17,8 @@ def start_test(args):
     if pid != 0:
         return
     with open(args.ip_list, "r") as f:
-        node_list = f.read()
-        node_list = node_list.strip()
-        node_list = node_list.split("\n")
+        node_list = f.read().strip().split('\n')
+        node_list = [ip.strip() for ip in node_list]
 
         # TODO: check IP pattern
         
@@ -33,8 +32,18 @@ def start_test(args):
                 node_list = node_list.difference(exclude_list)
                 node_list = list(node_list)
 
+        cluster_list = None
+        if args.cluster is not None:
+            cluster_list = []
+            cluster_file_list = args.cluster.strip().split(',')
+            for cfname in cluster_file_list:
+                with open(cfname, "r") as cf:
+                    li = cf.read().strip().split('\n')
+                    li = [ip.strip() for ip in li]
+                    cluster_list.append(li)
+
         print(node_list)
-        backend.launch(node_list, args.db, args.nc)
+        backend.launch(node_list, cluster_list, args.db, args.nc)
         
 def stop_test(args):
     # Get backend pid from DataBase
@@ -95,6 +104,7 @@ def parse_args():
     parser_start = subparsers.add_parser("start", help="start a new test");
     parser_start.add_argument("--ip_list", "-f", required=True, dest="ip_list", help="the path of ip list")
     parser_start.add_argument("--exclude_ip_list", "-e", dest="exclude_ip_list", help="the path of exclude ip list")
+    parser_start.add_argument("--cluster", "-cl", dest="cluster", help="the file of cluster, connected by comma(test in the same cluster will not be executed")
     parser_start.add_argument("--db", "-db", default="roce.db", dest="db", help="the path of database")
     parser_start.add_argument("--nc", "-nc", default=7, type=int, dest="nc", help="the number of consumers")
     parser_start.set_defaults(func=start_test)
